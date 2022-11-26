@@ -13,41 +13,46 @@ const hardFactor = 1.2
 var intervalModifier = math.Log(requestRetention) / math.Log(0.9)
 
 func (w *Weights) Repeat(card *Card, now time.Time) *SchedulingCards {
-
-	schedulingCards := new(SchedulingCards)
-	schedulingCards.init(card)
-	schedulingCards.updateState(card.State)
+	if card.State == New {
+		card.ElapsedDays = 0
+	} else {
+		card.ElapsedDays = uint64(math.Round(float64(now.Sub(card.LastReview) / time.Hour / 24)))
+	}
+	card.LastReview = now
+	card.Reps += 1
+	s := new(SchedulingCards)
+	s.init(card)
+	s.updateState(card.State)
 
 	switch card.State {
 	case New:
-		w.initDS(schedulingCards)
+		w.initDS(s)
 
-		easyInterval := w.nextInterval(schedulingCards.Easy.Stability * easyBonus)
-		schedulingCards.Easy.ScheduledDays = uint64(easyInterval)
-		schedulingCards.Easy.Due = now.Add(time.Duration(float64(easyInterval) * float64(24*time.Hour)))
-		return schedulingCards
+		easyInterval := w.nextInterval(s.Easy.Stability * easyBonus)
+		s.Easy.ScheduledDays = uint64(easyInterval)
+		s.Easy.Due = now.Add(time.Duration(float64(easyInterval) * float64(24*time.Hour)))
 	case Learning, Relearning:
-		hardInterval := w.nextInterval(schedulingCards.Hard.Stability)
-		goodInterval := math.Max(w.nextInterval(schedulingCards.Good.Stability), hardInterval+1)
-		easyInterval := math.Max(w.nextInterval(schedulingCards.Easy.Stability*easyBonus), goodInterval+1)
+		hardInterval := w.nextInterval(s.Hard.Stability)
+		goodInterval := math.Max(w.nextInterval(s.Good.Stability), hardInterval+1)
+		easyInterval := math.Max(w.nextInterval(s.Easy.Stability*easyBonus), goodInterval+1)
 
-		schedulingCards.schedule(now, hardInterval, goodInterval, easyInterval)
-		return schedulingCards
+		s.schedule(now, hardInterval, goodInterval, easyInterval)
 	case Review:
-		interval := float64(now.Sub(card.LastReview)/time.Hour/24 + 1.0)
+		interval := float64(card.ElapsedDays)
 		lastD := card.Difficulty
 		lastS := card.Stability
 		retrievability := math.Exp(math.Log(0.9) * interval / lastS)
-		w.nextDS(schedulingCards, lastD, lastS, retrievability)
+		w.nextDS(s, lastD, lastS, retrievability)
 
 		hardInterval := w.nextInterval(lastS * hardFactor)
-		goodInterval := math.Max(w.nextInterval(schedulingCards.Good.Stability), hardInterval+1)
-		easyInterval := math.Max(w.nextInterval(schedulingCards.Easy.Stability*easyBonus), goodInterval+1)
-		schedulingCards.schedule(now, hardInterval, goodInterval, easyInterval)
-
-		return schedulingCards
+		goodInterval := w.nextInterval(s.Good.Stability)
+		hardInterval = math.Min(hardInterval, goodInterval)
+		goodInterval = math.Max(goodInterval, hardInterval+1)
+		easyInterval := math.Max(w.nextInterval(s.Easy.Stability*easyBonus), goodInterval+1)
+		s.schedule(now, hardInterval, goodInterval, easyInterval)
 	}
-	return schedulingCards
+	s.recordLog(card.State, now)
+	return s
 }
 
 func (s *SchedulingCards) updateState(state State) {
@@ -57,6 +62,7 @@ func (s *SchedulingCards) updateState(state State) {
 		s.Hard.State = Learning
 		s.Good.State = Learning
 		s.Easy.State = Review
+		s.Again.Lapses += 1
 	case Learning, Relearning:
 		s.Again.State = state
 		s.Hard.State = Review
@@ -67,16 +73,57 @@ func (s *SchedulingCards) updateState(state State) {
 		s.Hard.State = Review
 		s.Good.State = Review
 		s.Easy.State = Review
+		s.Again.Lapses += 1
 	}
 }
 
 func (s *SchedulingCards) schedule(now time.Time, hardInterval float64, goodInterval float64, easyInterval float64) {
+	s.Again.ScheduledDays = 0
 	s.Hard.ScheduledDays = uint64(hardInterval)
 	s.Good.ScheduledDays = uint64(goodInterval)
 	s.Easy.ScheduledDays = uint64(easyInterval)
+	s.Again.Due = now
 	s.Hard.Due = now.Add(time.Duration(hardInterval * float64(24*time.Hour)))
 	s.Good.Due = now.Add(time.Duration(goodInterval * float64(24*time.Hour)))
 	s.Easy.Due = now.Add(time.Duration(easyInterval * float64(24*time.Hour)))
+}
+
+func (s *SchedulingCards) recordLog(state State, now time.Time) {
+	s.Again.ReviewLogs = append(s.Again.ReviewLogs,
+		&ReviewLog{
+			Rating:        Again,
+			ScheduledDays: s.Again.ScheduledDays,
+			ElapsedDays:   s.Again.ElapsedDays,
+			Review:        now,
+			State:         state,
+		})
+
+	s.Hard.ReviewLogs = append(s.Hard.ReviewLogs,
+		&ReviewLog{
+			Rating:        Hard,
+			ScheduledDays: s.Hard.ScheduledDays,
+			ElapsedDays:   s.Hard.ElapsedDays,
+			Review:        now,
+			State:         state,
+		})
+
+	s.Good.ReviewLogs = append(s.Good.ReviewLogs,
+		&ReviewLog{
+			Rating:        Good,
+			ScheduledDays: s.Good.ScheduledDays,
+			ElapsedDays:   s.Good.ElapsedDays,
+			Review:        now,
+			State:         state,
+		})
+
+	s.Easy.ReviewLogs = append(s.Easy.ReviewLogs,
+		&ReviewLog{
+			Rating:        Easy,
+			ScheduledDays: s.Easy.ScheduledDays,
+			ElapsedDays:   s.Easy.ElapsedDays,
+			Review:        now,
+			State:         state,
+		})
 }
 
 func (w *Weights) initDS(s *SchedulingCards) {

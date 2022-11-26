@@ -14,17 +14,32 @@ type Card struct {
 	ScheduledDays uint64       `json:"ScheduledDays"`
 	Reps          uint64       `json:"Reps"`
 	Lapses        uint64       `json:"Lapses"`
-	Leeched       bool         `json:"Leeched"`
 	State         State        `json:"State"`
 	LastReview    time.Time    `json:"LastReview"`
 	ReviewLogs    []*ReviewLog `json:"ReviewLogs"`
 }
 
+func NewCard() Card {
+	return Card{
+		Due:           time.Time{},
+		Stability:     0,
+		Difficulty:    0,
+		ElapsedDays:   0,
+		ScheduledDays: 0,
+		Reps:          0,
+		Lapses:        0,
+		State:         New,
+		LastReview:    time.Time{},
+		ReviewLogs:    []*ReviewLog{},
+	}
+}
+
 type ReviewLog struct {
-	Rating        Rating
-	ScheduledDays uint64
-	ElapsedDays   uint64
-	Reivew        time.Time
+	Rating        Rating    `json:"Rating"`
+	ScheduledDays uint64    `json:"ScheduledDays"`
+	ElapsedDays   uint64    `json:"ElapsedDays"`
+	Review        time.Time `json:"Review"`
+	State         State     `json:"State"`
 }
 
 type SchedulingCards struct {

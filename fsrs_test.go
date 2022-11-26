@@ -8,30 +8,37 @@ import (
 
 func TestRepeat(t *testing.T) {
 	w := DefaultWeights()
-	card := Card{
-		Due:           time.Now(),
-		Stability:     0,
-		Difficulty:    0,
-		ElapsedDays:   0,
-		ScheduledDays: 0,
-		Reps:          0,
-		Lapses:        0,
-		Leeched:       false,
-		State:         New,
-		LastReview:    time.Now(),
-		ReviewLogs:    []*ReviewLog{},
-	}
-	schedulingCards := w.Repeat(&card, time.Now())
+	card := NewCard()
+	now := time.Now()
+	schedulingCards := w.Repeat(&card, now)
 	schedule, _ := json.Marshal(schedulingCards)
 	t.Logf(string(schedule))
 
 	card = schedulingCards.Good
-	schedulingCards = w.Repeat(&card, time.Now())
+	interval := card.ScheduledDays
+	now = now.Add(time.Duration(float64(interval) * float64(24*time.Hour)))
+	schedulingCards = w.Repeat(&card, now)
 	schedule, _ = json.Marshal(schedulingCards)
 	t.Logf(string(schedule))
 
 	card = schedulingCards.Good
-	schedulingCards = w.Repeat(&card, time.Now().Add(time.Duration(10*float64(24*time.Hour))))
+	interval = card.ScheduledDays
+	now = now.Add(time.Duration(float64(interval) * float64(24*time.Hour)))
+	schedulingCards = w.Repeat(&card, now)
+	schedule, _ = json.Marshal(schedulingCards)
+	t.Logf(string(schedule))
+
+	card = schedulingCards.Again
+	interval = card.ScheduledDays
+	now = now.Add(time.Duration(float64(interval) * float64(24*time.Hour)))
+	schedulingCards = w.Repeat(&card, now)
+	schedule, _ = json.Marshal(schedulingCards)
+	t.Logf(string(schedule))
+
+	card = schedulingCards.Good
+	interval = card.ScheduledDays
+	now = now.Add(time.Duration(float64(interval) * float64(24*time.Hour)))
+	schedulingCards = w.Repeat(&card, now)
 	schedule, _ = json.Marshal(schedulingCards)
 	t.Logf(string(schedule))
 }
