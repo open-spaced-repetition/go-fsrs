@@ -5,14 +5,7 @@ import (
 	"time"
 )
 
-const requestRetention = 0.9
-const maximumInterval = 36500.0
-const easyBonus = 1.3
-const hardFactor = 1.2
-
-var intervalModifier = math.Log(requestRetention) / math.Log(0.9)
-
-func (w *Weights) Repeat(card *Card, now time.Time) *SchedulingCards {
+func (p *Parameters) Repeat(card *Card, now time.Time) *SchedulingCards {
 	if card.State == New {
 		card.ElapsedDays = 0
 	} else {
@@ -26,15 +19,18 @@ func (w *Weights) Repeat(card *Card, now time.Time) *SchedulingCards {
 
 	switch card.State {
 	case New:
-		w.initDS(s)
+		p.initDS(s)
 
-		easyInterval := w.nextInterval(s.Easy.Stability * easyBonus)
+		s.Again.Due = now.Add(1 * time.Minute)
+		s.Hard.Due = now.Add(5 * time.Minute)
+		s.Good.Due = now.Add(10 * time.Minute)
+		easyInterval := p.nextInterval(s.Easy.Stability * p.EasyBonus)
 		s.Easy.ScheduledDays = uint64(easyInterval)
-		s.Easy.Due = now.Add(time.Duration(float64(easyInterval) * float64(24*time.Hour)))
+		s.Easy.Due = now.Add(time.Duration(easyInterval) * 24 * time.Hour)
 	case Learning, Relearning:
-		hardInterval := w.nextInterval(s.Hard.Stability)
-		goodInterval := math.Max(w.nextInterval(s.Good.Stability), hardInterval+1)
-		easyInterval := math.Max(w.nextInterval(s.Easy.Stability*easyBonus), goodInterval+1)
+		hardInterval := p.nextInterval(s.Hard.Stability)
+		goodInterval := math.Max(p.nextInterval(s.Good.Stability), hardInterval+1)
+		easyInterval := math.Max(p.nextInterval(s.Easy.Stability*p.EasyBonus), goodInterval+1)
 
 		s.schedule(now, hardInterval, goodInterval, easyInterval)
 	case Review:
@@ -42,13 +38,13 @@ func (w *Weights) Repeat(card *Card, now time.Time) *SchedulingCards {
 		lastD := card.Difficulty
 		lastS := card.Stability
 		retrievability := math.Exp(math.Log(0.9) * interval / lastS)
-		w.nextDS(s, lastD, lastS, retrievability)
+		p.nextDS(s, lastD, lastS, retrievability)
 
-		hardInterval := w.nextInterval(lastS * hardFactor)
-		goodInterval := w.nextInterval(s.Good.Stability)
+		hardInterval := p.nextInterval(lastS * p.HardFactor)
+		goodInterval := p.nextInterval(s.Good.Stability)
 		hardInterval = math.Min(hardInterval, goodInterval)
 		goodInterval = math.Max(goodInterval, hardInterval+1)
-		easyInterval := math.Max(w.nextInterval(s.Easy.Stability*easyBonus), goodInterval+1)
+		easyInterval := math.Max(p.nextInterval(s.Easy.Stability*p.EasyBonus), goodInterval+1)
 		s.schedule(now, hardInterval, goodInterval, easyInterval)
 	}
 	s.recordLog(card.State, now)
@@ -82,15 +78,17 @@ func (s *SchedulingCards) schedule(now time.Time, hardInterval float64, goodInte
 	s.Hard.ScheduledDays = uint64(hardInterval)
 	s.Good.ScheduledDays = uint64(goodInterval)
 	s.Easy.ScheduledDays = uint64(easyInterval)
-	s.Again.Due = now
-	s.Hard.Due = now.Add(time.Duration(hardInterval * float64(24*time.Hour)))
-	s.Good.Due = now.Add(time.Duration(goodInterval * float64(24*time.Hour)))
-	s.Easy.Due = now.Add(time.Duration(easyInterval * float64(24*time.Hour)))
+	s.Again.Due = now.Add(5 * time.Minute)
+	s.Hard.Due = now.Add(time.Duration(hardInterval) * 24 * time.Hour)
+	s.Good.Due = now.Add(time.Duration(goodInterval) * 24 * time.Hour)
+	s.Easy.Due = now.Add(time.Duration(easyInterval) * 24 * time.Hour)
 }
 
 func (s *SchedulingCards) recordLog(state State, now time.Time) {
 	s.Again.ReviewLogs = append(s.Again.ReviewLogs,
 		&ReviewLog{
+			Id:            now.UnixNano(),
+			CardId:        s.Again.Id,
 			Rating:        Again,
 			ScheduledDays: s.Again.ScheduledDays,
 			ElapsedDays:   s.Again.ElapsedDays,
@@ -100,6 +98,8 @@ func (s *SchedulingCards) recordLog(state State, now time.Time) {
 
 	s.Hard.ReviewLogs = append(s.Hard.ReviewLogs,
 		&ReviewLog{
+			Id:            now.UnixNano(),
+			CardId:        s.Hard.Id,
 			Rating:        Hard,
 			ScheduledDays: s.Hard.ScheduledDays,
 			ElapsedDays:   s.Hard.ElapsedDays,
@@ -109,6 +109,8 @@ func (s *SchedulingCards) recordLog(state State, now time.Time) {
 
 	s.Good.ReviewLogs = append(s.Good.ReviewLogs,
 		&ReviewLog{
+			Id:            now.UnixNano(),
+			CardId:        s.Good.Id,
 			Rating:        Good,
 			ScheduledDays: s.Good.ScheduledDays,
 			ElapsedDays:   s.Good.ElapsedDays,
@@ -118,6 +120,8 @@ func (s *SchedulingCards) recordLog(state State, now time.Time) {
 
 	s.Easy.ReviewLogs = append(s.Easy.ReviewLogs,
 		&ReviewLog{
+			Id:            now.UnixNano(),
+			CardId:        s.Easy.Id,
 			Rating:        Easy,
 			ScheduledDays: s.Easy.ScheduledDays,
 			ElapsedDays:   s.Easy.ElapsedDays,
@@ -126,61 +130,61 @@ func (s *SchedulingCards) recordLog(state State, now time.Time) {
 		})
 }
 
-func (w *Weights) initDS(s *SchedulingCards) {
-	s.Again.Difficulty = w.initDifficulty(Again)
-	s.Again.Stability = w.initStability(Again)
-	s.Hard.Difficulty = w.initDifficulty(Hard)
-	s.Hard.Stability = w.initStability(Hard)
-	s.Good.Difficulty = w.initDifficulty(Good)
-	s.Good.Stability = w.initStability(Good)
-	s.Easy.Difficulty = w.initDifficulty(Easy)
-	s.Easy.Stability = w.initStability(Easy)
+func (p *Parameters) initDS(s *SchedulingCards) {
+	s.Again.Difficulty = p.initDifficulty(Again)
+	s.Again.Stability = p.initStability(Again)
+	s.Hard.Difficulty = p.initDifficulty(Hard)
+	s.Hard.Stability = p.initStability(Hard)
+	s.Good.Difficulty = p.initDifficulty(Good)
+	s.Good.Stability = p.initStability(Good)
+	s.Easy.Difficulty = p.initDifficulty(Easy)
+	s.Easy.Stability = p.initStability(Easy)
 }
 
-func (w *Weights) nextDS(s *SchedulingCards, lastD float64, lastS float64, retrievability float64) {
-	s.Again.Difficulty = w.nextDifficulty(lastD, Again)
-	s.Again.Stability = w.nextForgetStability(s.Again.Difficulty, lastS, retrievability)
-	s.Hard.Difficulty = w.nextDifficulty(lastD, Hard)
-	s.Hard.Stability = w.nextRecallStability(s.Hard.Difficulty, lastS, retrievability)
-	s.Good.Difficulty = w.nextDifficulty(lastD, Good)
-	s.Good.Stability = w.nextRecallStability(s.Good.Difficulty, lastS, retrievability)
-	s.Easy.Difficulty = w.nextDifficulty(lastD, Easy)
-	s.Easy.Stability = w.nextRecallStability(s.Easy.Difficulty, lastS, retrievability)
+func (p *Parameters) nextDS(s *SchedulingCards, lastD float64, lastS float64, retrievability float64) {
+	s.Again.Difficulty = p.nextDifficulty(lastD, Again)
+	s.Again.Stability = p.nextForgetStability(s.Again.Difficulty, lastS, retrievability)
+	s.Hard.Difficulty = p.nextDifficulty(lastD, Hard)
+	s.Hard.Stability = p.nextRecallStability(s.Hard.Difficulty, lastS, retrievability)
+	s.Good.Difficulty = p.nextDifficulty(lastD, Good)
+	s.Good.Stability = p.nextRecallStability(s.Good.Difficulty, lastS, retrievability)
+	s.Easy.Difficulty = p.nextDifficulty(lastD, Easy)
+	s.Easy.Stability = p.nextRecallStability(s.Easy.Difficulty, lastS, retrievability)
 }
 
-func (w *Weights) initStability(r Rating) float64 {
-	return math.Max(w[0]+w[1]*float64(r), 0.1)
+func (p *Parameters) initStability(r Rating) float64 {
+	return math.Max(p.W[0]+p.W[1]*float64(r), 0.1)
 }
-func (w *Weights) initDifficulty(r Rating) float64 {
-	return constrainDifficulty(w[2] + w[3]*float64(r-2))
+func (p *Parameters) initDifficulty(r Rating) float64 {
+	return constrainDifficulty(p.W[2] + p.W[3]*float64(r-2))
 }
 
 func constrainDifficulty(d float64) float64 {
 	return math.Min(math.Max(d, 1), 10)
 }
 
-func (w *Weights) nextInterval(s float64) float64 {
-	newInterval := s * intervalModifier
-	return math.Max(math.Min(math.Round(newInterval), maximumInterval), 1)
+func (p *Parameters) nextInterval(s float64) float64 {
+	newInterval := s * math.Log(p.RequestRetention) / math.Log(0.9)
+	return math.Max(math.Min(math.Round(newInterval), p.MaximumInterval), 1)
 }
 
-func (w *Weights) nextDifficulty(d float64, r Rating) float64 {
-	nextD := d + w[4]*float64(r-2)
-	return constrainDifficulty(w.meanReversion(w[2], nextD))
+func (p *Parameters) nextDifficulty(d float64, r Rating) float64 {
+	nextD := d + p.W[4]*float64(r-2)
+	return constrainDifficulty(p.meanReversion(p.W[2], nextD))
 }
 
-func (w *Weights) meanReversion(init float64, current float64) float64 {
-	return w[5]*init + (1-w[5])*current
+func (p *Parameters) meanReversion(init float64, current float64) float64 {
+	return p.W[5]*init + (1-p.W[5])*current
 }
 
-func (w *Weights) nextRecallStability(d float64, s float64, r float64) float64 {
-	return s * (1 + math.Exp(w[6])*
+func (p *Parameters) nextRecallStability(d float64, s float64, r float64) float64 {
+	return s * (1 + math.Exp(p.W[6])*
 		(11-d)*
-		math.Pow(s, w[7])*
-		(math.Exp((1-r)*w[8])-1))
+		math.Pow(s, p.W[7])*
+		(math.Exp((1-r)*p.W[8])-1))
 }
 
-func (w *Weights) nextForgetStability(d float64, s float64, r float64) float64 {
-	return w[9] * math.Pow(d, w[10]) * math.Pow(
-		s, w[11]) * math.Exp((1-r)*w[12])
+func (p *Parameters) nextForgetStability(d float64, s float64, r float64) float64 {
+	return p.W[9] * math.Pow(d, p.W[10]) * math.Pow(
+		s, p.W[11]) * math.Exp((1-r)*p.W[12])
 }
