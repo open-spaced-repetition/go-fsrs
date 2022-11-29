@@ -29,17 +29,16 @@ func DefaultParam() Parameters {
 }
 
 type Card struct {
-	Id            int64        `json:"Id"`
-	Due           time.Time    `json:"Due"`
-	Stability     float64      `json:"Stability"`
-	Difficulty    float64      `json:"Difficulty"`
-	ElapsedDays   uint64       `json:"ElapsedDays"`
-	ScheduledDays uint64       `json:"ScheduledDays"`
-	Reps          uint64       `json:"Reps"`
-	Lapses        uint64       `json:"Lapses"`
-	State         State        `json:"State"`
-	LastReview    time.Time    `json:"LastReview"`
-	ReviewLogs    []*ReviewLog `json:"ReviewLogs"`
+	Id            int64     `json:"Id"`
+	Due           time.Time `json:"Due"`
+	Stability     float64   `json:"Stability"`
+	Difficulty    float64   `json:"Difficulty"`
+	ElapsedDays   uint64    `json:"ElapsedDays"`
+	ScheduledDays uint64    `json:"ScheduledDays"`
+	Reps          uint64    `json:"Reps"`
+	Lapses        uint64    `json:"Lapses"`
+	State         State     `json:"State"`
+	LastReview    time.Time `json:"LastReview"`
 }
 
 func NewCard() Card {
@@ -54,7 +53,6 @@ func NewCard() Card {
 		Lapses:        0,
 		State:         New,
 		LastReview:    time.Time{},
-		ReviewLogs:    []*ReviewLog{},
 	}
 }
 
@@ -80,6 +78,11 @@ func (s *SchedulingCards) init(card *Card) {
 	s.Hard = *card
 	s.Good = *card
 	s.Easy = *card
+}
+
+type SchedulingInfo struct {
+	Card      Card
+	ReviewLog ReviewLog
 }
 
 type Rating int8

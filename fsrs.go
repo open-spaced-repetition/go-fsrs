@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func (p *Parameters) Repeat(card *Card, now time.Time) *SchedulingCards {
+func (p *Parameters) Repeat(card *Card, now time.Time) map[Rating]SchedulingInfo {
 	if card.State == New {
 		card.ElapsedDays = 0
 	} else {
@@ -47,8 +47,7 @@ func (p *Parameters) Repeat(card *Card, now time.Time) *SchedulingCards {
 		easyInterval := math.Max(p.nextInterval(s.Easy.Stability*p.EasyBonus), goodInterval+1)
 		s.schedule(now, hardInterval, goodInterval, easyInterval)
 	}
-	s.recordLog(card.State, now)
-	return s
+	return s.recordLog(*card, now)
 }
 
 func (s *SchedulingCards) updateState(state State) {
@@ -84,50 +83,46 @@ func (s *SchedulingCards) schedule(now time.Time, hardInterval float64, goodInte
 	s.Easy.Due = now.Add(time.Duration(easyInterval) * 24 * time.Hour)
 }
 
-func (s *SchedulingCards) recordLog(state State, now time.Time) {
-	s.Again.ReviewLogs = append(s.Again.ReviewLogs,
-		&ReviewLog{
+func (s *SchedulingCards) recordLog(card Card, now time.Time) map[Rating]SchedulingInfo {
+	m := map[Rating]SchedulingInfo{
+		Again: {s.Again, ReviewLog{
 			Id:            now.UnixNano(),
-			CardId:        s.Again.Id,
+			CardId:        card.Id,
 			Rating:        Again,
 			ScheduledDays: s.Again.ScheduledDays,
-			ElapsedDays:   s.Again.ElapsedDays,
+			ElapsedDays:   card.ElapsedDays,
 			Review:        now,
-			State:         state,
-		})
-
-	s.Hard.ReviewLogs = append(s.Hard.ReviewLogs,
-		&ReviewLog{
+			State:         card.State,
+		}},
+		Hard: {s.Hard, ReviewLog{
 			Id:            now.UnixNano(),
-			CardId:        s.Hard.Id,
+			CardId:        card.Id,
 			Rating:        Hard,
 			ScheduledDays: s.Hard.ScheduledDays,
-			ElapsedDays:   s.Hard.ElapsedDays,
+			ElapsedDays:   card.ElapsedDays,
 			Review:        now,
-			State:         state,
-		})
-
-	s.Good.ReviewLogs = append(s.Good.ReviewLogs,
-		&ReviewLog{
+			State:         card.State,
+		}},
+		Good: {s.Good, ReviewLog{
 			Id:            now.UnixNano(),
-			CardId:        s.Good.Id,
+			CardId:        card.Id,
 			Rating:        Good,
 			ScheduledDays: s.Good.ScheduledDays,
-			ElapsedDays:   s.Good.ElapsedDays,
+			ElapsedDays:   card.ElapsedDays,
 			Review:        now,
-			State:         state,
-		})
-
-	s.Easy.ReviewLogs = append(s.Easy.ReviewLogs,
-		&ReviewLog{
+			State:         card.State,
+		}},
+		Easy: {s.Easy, ReviewLog{
 			Id:            now.UnixNano(),
-			CardId:        s.Easy.Id,
+			CardId:        card.Id,
 			Rating:        Easy,
 			ScheduledDays: s.Easy.ScheduledDays,
-			ElapsedDays:   s.Easy.ElapsedDays,
+			ElapsedDays:   card.ElapsedDays,
 			Review:        now,
-			State:         state,
-		})
+			State:         card.State,
+		}},
+	}
+	return m
 }
 
 func (p *Parameters) initDS(s *SchedulingCards) {
