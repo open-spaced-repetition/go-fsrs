@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func (p *Parameters) Repeat(card *Card, now time.Time) map[Rating]SchedulingInfo {
+func (p *Parameters) Repeat(card Card, now time.Time) map[Rating]SchedulingInfo {
 	if card.State == New {
 		card.ElapsedDays = 0
 	} else {
@@ -47,7 +47,7 @@ func (p *Parameters) Repeat(card *Card, now time.Time) map[Rating]SchedulingInfo
 		easyInterval := math.Max(p.nextInterval(s.Easy.Stability*p.EasyBonus), goodInterval+1)
 		s.schedule(now, hardInterval, goodInterval, easyInterval)
 	}
-	return s.recordLog(*card, now)
+	return s.recordLog(card, now)
 }
 
 func (s *SchedulingCards) updateState(state State) {

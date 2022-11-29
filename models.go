@@ -73,11 +73,11 @@ type SchedulingCards struct {
 	Easy  Card
 }
 
-func (s *SchedulingCards) init(card *Card) {
-	s.Again = *card
-	s.Hard = *card
-	s.Good = *card
-	s.Easy = *card
+func (s *SchedulingCards) init(card Card) {
+	s.Again = card
+	s.Hard = card
+	s.Good = card
+	s.Easy = card
 }
 
 type SchedulingInfo struct {
