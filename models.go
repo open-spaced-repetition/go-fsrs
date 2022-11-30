@@ -1,69 +1,114 @@
 package fsrs
 
-import "time"
-
-type GlobalData struct {
-	DifficultyDecay    float64          `json:"difficultyDecay"`
-	StabilityDecay     float64          `json:"stabilityDecay"`
-	IncreaseFactor     float64          `json:"increaseFactor"`
-	RequestRetention   float64          `json:"requestRetention"`
-	TotalCase          uint64           `json:"totalCase"`
-	TotalDiff          float64          `json:"totalDiff"`
-	TotalReview        uint64           `json:"totalReview"`
-	DefaultDifficulty  float64          `json:"defaultDifficulty"`
-	DefaultStability   float64          `json:"defaultStability"`
-	StabilityDataArray []*StabilityData `json:"stabilityDataArray"`
-}
-
-type StabilityData struct {
-	Interval       uint64
-	Retrievability uint64
-}
-
-type CardData struct {
-	CardDataItem
-
-	History []*CardDataItem
-}
-
-type CardDataItem struct {
-	Due            time.Time
-	Interval       uint64 // 上次复习间隔（单位为天）
-	Difficulty     float64
-	Stability      float64
-	Retrievability float64
-	LastGrade      Grade // 上次得分
-	Review         time.Time
-	Reps           uint64
-	Lapses         uint64
-}
-
-func (item *CardDataItem) Copy() CardDataItem {
-	return *item
-}
-
-type Grade int8
-
-const (
-	GradeForgetting Grade = iota
-	GradeRemembered
-	GradeEasy
-
-	GradeNewCard Grade = -1
+import (
+	"time"
 )
 
-// DefaultGlobalData returns the default values of GlobalData
-func DefaultGlobalData() GlobalData {
-	return GlobalData{
-		DifficultyDecay:    -0.7,
-		StabilityDecay:     0.2,
-		IncreaseFactor:     60,
-		RequestRetention:   0.9,
-		TotalCase:          0,
-		TotalDiff:          0,
-		TotalReview:        0,
-		DefaultDifficulty:  5,
-		DefaultStability:   2,
-		StabilityDataArray: nil,
+type weights [13]float64
+
+func defaultWeights() weights {
+	return weights{1, 1, 5, -0.5, -0.5, 0.2, 1.4, -0.12, 0.8, 2, -0.2, 0.2, 1}
+}
+
+type Parameters struct {
+	RequestRetention float64
+	MaximumInterval  float64
+	EasyBonus        float64
+	HardFactor       float64
+	W                weights
+}
+
+func DefaultParam() Parameters {
+	return Parameters{
+		RequestRetention: 0.9,
+		MaximumInterval:  36500,
+		EasyBonus:        1.3,
+		HardFactor:       1.2,
+		W:                defaultWeights(),
 	}
 }
+
+type Card struct {
+	Due           time.Time `json:"Due"`
+	Stability     float64   `json:"Stability"`
+	Difficulty    float64   `json:"Difficulty"`
+	ElapsedDays   uint64    `json:"ElapsedDays"`
+	ScheduledDays uint64    `json:"ScheduledDays"`
+	Reps          uint64    `json:"Reps"`
+	Lapses        uint64    `json:"Lapses"`
+	State         State     `json:"State"`
+	LastReview    time.Time `json:"LastReview"`
+}
+
+func NewCard() Card {
+	return Card{
+		Due:           time.Time{},
+		Stability:     0,
+		Difficulty:    0,
+		ElapsedDays:   0,
+		ScheduledDays: 0,
+		Reps:          0,
+		Lapses:        0,
+		State:         New,
+		LastReview:    time.Time{},
+	}
+}
+
+type ReviewLog struct {
+	Rating        Rating    `json:"Rating"`
+	ScheduledDays uint64    `json:"ScheduledDays"`
+	ElapsedDays   uint64    `json:"ElapsedDays"`
+	Review        time.Time `json:"Review"`
+	State         State     `json:"State"`
+}
+
+type SchedulingCards struct {
+	Again Card
+	Hard  Card
+	Good  Card
+	Easy  Card
+}
+
+func (s *SchedulingCards) init(card Card) {
+	s.Again = card
+	s.Hard = card
+	s.Good = card
+	s.Easy = card
+}
+
+type SchedulingInfo struct {
+	Card      Card
+	ReviewLog ReviewLog
+}
+
+type Rating int8
+
+const (
+	Again Rating = iota
+	Hard
+	Good
+	Easy
+)
+
+func (s Rating) String() string {
+	switch s {
+	case Again:
+		return "Again"
+	case Hard:
+		return "Hard"
+	case Good:
+		return "Good"
+	case Easy:
+		return "Easy"
+	}
+	return "unknown"
+}
+
+type State int8
+
+const (
+	New State = iota
+	Learning
+	Review
+	Relearning
+)

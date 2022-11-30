@@ -1,133 +1,177 @@
 package fsrs
 
 import (
-	"fmt"
 	"math"
 	"time"
-
-	"github.com/ImSingee/go-ex/set"
 )
 
-func (globalData *GlobalData) Learn(cardData *CardData, grade Grade) {
-	if grade < GradeNewCard || grade > GradeEasy {
-		panic(fmt.Sprintf("Invalid grade: %d", grade))
-	}
-
-	now := time.Now()
-
-	if grade == GradeNewCard { // learn new card
-		addDay := math.Round(globalData.DefaultStability * math.Log(globalData.RequestRetention) / math.Log(0.9))
-
-		cardData.Due = now.Add(time.Duration(addDay * float64(24*time.Hour)))
-		cardData.Interval = 0
-		cardData.Difficulty = globalData.DefaultDifficulty
-		cardData.Stability = globalData.DefaultStability
-		cardData.Retrievability = 1
-		cardData.LastGrade = GradeNewCard
-		cardData.Review = now
-		cardData.Reps = 1
-		cardData.Lapses = 0
-
-		return
-	}
-
-	// review card after learn
-	lastDifficulty := cardData.Difficulty
-	lastStability := cardData.Stability
-	lastLapses := cardData.Lapses
-	lastReps := cardData.Reps
-	lastReview := cardData.Review
-
-	h := cardData.CardDataItem
-	cardData.History = append(cardData.History, &h)
-
-	diffDay := (time.Since(lastReview) / time.Hour / 24) + 1
-	if diffDay > 0 {
-		cardData.Interval = uint64(diffDay)
+func (p *Parameters) Repeat(card Card, now time.Time) map[Rating]SchedulingInfo {
+	if card.State == New {
+		card.ElapsedDays = 0
 	} else {
-		cardData.Interval = 0
+		card.ElapsedDays = uint64(math.Round(float64(now.Sub(card.LastReview) / time.Hour / 24)))
 	}
+	card.LastReview = now
+	card.Reps += 1
+	s := new(SchedulingCards)
+	s.init(card)
+	s.updateState(card.State)
 
-	cardData.Review = now
-	cardData.Retrievability = math.Exp(math.Log(0.9) * float64(cardData.Interval) / lastStability)
-	cardData.Difficulty = math.Min(math.Max(lastDifficulty+cardData.Retrievability-float64(grade)+0.2, 1), 10)
+	switch card.State {
+	case New:
+		p.initDS(s)
 
-	if grade == GradeForgetting {
-		cardData.Stability = globalData.DefaultStability * math.Exp(-0.3*float64(lastLapses+1))
+		s.Again.Due = now.Add(1 * time.Minute)
+		s.Hard.Due = now.Add(5 * time.Minute)
+		s.Good.Due = now.Add(10 * time.Minute)
+		easyInterval := p.nextInterval(s.Easy.Stability * p.EasyBonus)
+		s.Easy.ScheduledDays = uint64(easyInterval)
+		s.Easy.Due = now.Add(time.Duration(easyInterval) * 24 * time.Hour)
+	case Learning, Relearning:
+		hardInterval := p.nextInterval(s.Hard.Stability)
+		goodInterval := math.Max(p.nextInterval(s.Good.Stability), hardInterval+1)
+		easyInterval := math.Max(p.nextInterval(s.Easy.Stability*p.EasyBonus), goodInterval+1)
 
-		if lastReps > 1 {
-			globalData.TotalDiff = globalData.TotalDiff - cardData.Retrievability
-		}
+		s.schedule(now, hardInterval, goodInterval, easyInterval)
+	case Review:
+		interval := float64(card.ElapsedDays)
+		lastD := card.Difficulty
+		lastS := card.Stability
+		retrievability := math.Exp(math.Log(0.9) * interval / lastS)
+		p.nextDS(s, lastD, lastS, retrievability)
 
-		cardData.Lapses = lastLapses + 1
-		cardData.Reps = 1
-
-	} else { //grade == 1 || grade == 2
-		cardData.Stability = lastStability * (1 + globalData.IncreaseFactor*math.Pow(cardData.Difficulty, globalData.DifficultyDecay)*math.Pow(lastStability, globalData.StabilityDecay)*(math.Exp(1-cardData.Retrievability)-1))
-
-		if lastReps > 1 {
-			globalData.TotalDiff = globalData.TotalDiff + 1 - cardData.Retrievability
-		}
-
-		cardData.Lapses = lastLapses
-		cardData.Reps = lastReps + 1
+		hardInterval := p.nextInterval(lastS * p.HardFactor)
+		goodInterval := p.nextInterval(s.Good.Stability)
+		hardInterval = math.Min(hardInterval, goodInterval)
+		goodInterval = math.Max(goodInterval, hardInterval+1)
+		easyInterval := math.Max(p.nextInterval(s.Easy.Stability*p.EasyBonus), goodInterval+1)
+		s.schedule(now, hardInterval, goodInterval, easyInterval)
 	}
+	return s.recordLog(card, now)
+}
 
-	globalData.TotalCase++
-	globalData.TotalReview++
-
-	addDay := math.Round(cardData.Stability * math.Log(globalData.RequestRetention) / math.Log(0.9))
-	cardData.Due = now.Add(time.Duration(addDay * float64(24*time.Hour)))
-
-	// Adaptive globalData.defaultDifficulty
-	if globalData.TotalCase > 100 {
-		globalData.DefaultDifficulty = 1.0/math.Pow(float64(globalData.TotalReview), 0.3)*math.Pow(math.Log(globalData.RequestRetention)/math.Max(math.Log(globalData.RequestRetention+globalData.TotalDiff/float64(globalData.TotalCase)), 0), 1/globalData.DifficultyDecay)*5 + (1-1/math.Pow(float64(globalData.TotalReview), 0.3))*globalData.DefaultDifficulty
-
-		globalData.TotalDiff = 0
-		globalData.TotalCase = 0
+func (s *SchedulingCards) updateState(state State) {
+	switch state {
+	case New:
+		s.Again.State = Learning
+		s.Hard.State = Learning
+		s.Good.State = Learning
+		s.Easy.State = Review
+		s.Again.Lapses += 1
+	case Learning, Relearning:
+		s.Again.State = state
+		s.Hard.State = Review
+		s.Good.State = Review
+		s.Easy.State = Review
+	case Review:
+		s.Again.State = Relearning
+		s.Hard.State = Review
+		s.Good.State = Review
+		s.Easy.State = Review
+		s.Again.Lapses += 1
 	}
+}
 
-	// Adaptive globalData.defaultStability
-	if lastReps == 1 && lastLapses == 0 {
-		retrievability := uint64(0)
-		if grade > GradeForgetting {
-			retrievability = 1
-		}
-		globalData.StabilityDataArray = append(globalData.StabilityDataArray, &StabilityData{
-			Interval:       cardData.Interval,
-			Retrievability: retrievability,
-		})
+func (s *SchedulingCards) schedule(now time.Time, hardInterval float64, goodInterval float64, easyInterval float64) {
+	s.Again.ScheduledDays = 0
+	s.Hard.ScheduledDays = uint64(hardInterval)
+	s.Good.ScheduledDays = uint64(goodInterval)
+	s.Easy.ScheduledDays = uint64(easyInterval)
+	s.Again.Due = now.Add(5 * time.Minute)
+	s.Hard.Due = now.Add(time.Duration(hardInterval) * 24 * time.Hour)
+	s.Good.Due = now.Add(time.Duration(goodInterval) * 24 * time.Hour)
+	s.Easy.Due = now.Add(time.Duration(easyInterval) * 24 * time.Hour)
+}
 
-		if len(globalData.StabilityDataArray) > 0 && len(globalData.StabilityDataArray)%50 == 0 {
-			intervalSetArray := set.New[uint64]()
-
-			sumRI2S := float64(0)
-			sumI2S := float64(0)
-
-			for s := 0; s < len(globalData.StabilityDataArray); s++ {
-				ivl := globalData.StabilityDataArray[s].Interval
-
-				if !intervalSetArray.Has(ivl) {
-					intervalSetArray.Add(ivl)
-
-					retrievabilitySum := uint64(0)
-					currentCount := 0
-					for _, fi := range globalData.StabilityDataArray {
-						if fi.Interval == ivl {
-							retrievabilitySum += fi.Retrievability
-							currentCount++
-						}
-					}
-
-					if retrievabilitySum > 0 {
-						sumRI2S = sumRI2S + float64(ivl)*math.Log(float64(retrievabilitySum)/float64(currentCount))*float64(currentCount)
-						sumI2S = sumI2S + float64(ivl*ivl)*float64(currentCount)
-					}
-				}
-
-			}
-
-			globalData.DefaultStability = (math.Max(math.Log(0.9)/(sumRI2S/sumI2S), 0.1) + globalData.DefaultStability) / 2
-		}
+func (s *SchedulingCards) recordLog(card Card, now time.Time) map[Rating]SchedulingInfo {
+	m := map[Rating]SchedulingInfo{
+		Again: {s.Again, ReviewLog{
+			Rating:        Again,
+			ScheduledDays: s.Again.ScheduledDays,
+			ElapsedDays:   card.ElapsedDays,
+			Review:        now,
+			State:         card.State,
+		}},
+		Hard: {s.Hard, ReviewLog{
+			Rating:        Hard,
+			ScheduledDays: s.Hard.ScheduledDays,
+			ElapsedDays:   card.ElapsedDays,
+			Review:        now,
+			State:         card.State,
+		}},
+		Good: {s.Good, ReviewLog{
+			Rating:        Good,
+			ScheduledDays: s.Good.ScheduledDays,
+			ElapsedDays:   card.ElapsedDays,
+			Review:        now,
+			State:         card.State,
+		}},
+		Easy: {s.Easy, ReviewLog{
+			Rating:        Easy,
+			ScheduledDays: s.Easy.ScheduledDays,
+			ElapsedDays:   card.ElapsedDays,
+			Review:        now,
+			State:         card.State,
+		}},
 	}
+	return m
+}
+
+func (p *Parameters) initDS(s *SchedulingCards) {
+	s.Again.Difficulty = p.initDifficulty(Again)
+	s.Again.Stability = p.initStability(Again)
+	s.Hard.Difficulty = p.initDifficulty(Hard)
+	s.Hard.Stability = p.initStability(Hard)
+	s.Good.Difficulty = p.initDifficulty(Good)
+	s.Good.Stability = p.initStability(Good)
+	s.Easy.Difficulty = p.initDifficulty(Easy)
+	s.Easy.Stability = p.initStability(Easy)
+}
+
+func (p *Parameters) nextDS(s *SchedulingCards, lastD float64, lastS float64, retrievability float64) {
+	s.Again.Difficulty = p.nextDifficulty(lastD, Again)
+	s.Again.Stability = p.nextForgetStability(s.Again.Difficulty, lastS, retrievability)
+	s.Hard.Difficulty = p.nextDifficulty(lastD, Hard)
+	s.Hard.Stability = p.nextRecallStability(s.Hard.Difficulty, lastS, retrievability)
+	s.Good.Difficulty = p.nextDifficulty(lastD, Good)
+	s.Good.Stability = p.nextRecallStability(s.Good.Difficulty, lastS, retrievability)
+	s.Easy.Difficulty = p.nextDifficulty(lastD, Easy)
+	s.Easy.Stability = p.nextRecallStability(s.Easy.Difficulty, lastS, retrievability)
+}
+
+func (p *Parameters) initStability(r Rating) float64 {
+	return math.Max(p.W[0]+p.W[1]*float64(r), 0.1)
+}
+func (p *Parameters) initDifficulty(r Rating) float64 {
+	return constrainDifficulty(p.W[2] + p.W[3]*float64(r-2))
+}
+
+func constrainDifficulty(d float64) float64 {
+	return math.Min(math.Max(d, 1), 10)
+}
+
+func (p *Parameters) nextInterval(s float64) float64 {
+	newInterval := s * math.Log(p.RequestRetention) / math.Log(0.9)
+	return math.Max(math.Min(math.Round(newInterval), p.MaximumInterval), 1)
+}
+
+func (p *Parameters) nextDifficulty(d float64, r Rating) float64 {
+	nextD := d + p.W[4]*float64(r-2)
+	return constrainDifficulty(p.meanReversion(p.W[2], nextD))
+}
+
+func (p *Parameters) meanReversion(init float64, current float64) float64 {
+	return p.W[5]*init + (1-p.W[5])*current
+}
+
+func (p *Parameters) nextRecallStability(d float64, s float64, r float64) float64 {
+	return s * (1 + math.Exp(p.W[6])*
+		(11-d)*
+		math.Pow(s, p.W[7])*
+		(math.Exp((1-r)*p.W[8])-1))
+}
+
+func (p *Parameters) nextForgetStability(d float64, s float64, r float64) float64 {
+	return p.W[9] * math.Pow(d, p.W[10]) * math.Pow(
+		s, p.W[11]) * math.Exp((1-r)*p.W[12])
 }
