@@ -8,7 +8,7 @@ Go module implements [Free Spaced Repetition Scheduler algorithm](https://github
 
 I'm developing a more useful module, the current module is only the algorithm implementation.
 
-Please see [GoDoc](https://pkg.go.dev/github.com/open-spaced-repetition/go-fsrs) for documents.
+Please see [GoDoc](https://pkg.go.dev/github.com/open-spaced-repetition/go-fsrs) and [Wiki](https://github.com/open-spaced-repetition/go-fsrs/wiki) for documents.
 
 **The Module Is in Very Early Stage, and It's Subject to Change**
 
