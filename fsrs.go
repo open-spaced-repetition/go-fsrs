@@ -86,8 +86,6 @@ func (s *SchedulingCards) schedule(now time.Time, hardInterval float64, goodInte
 func (s *SchedulingCards) recordLog(card Card, now time.Time) map[Rating]SchedulingInfo {
 	m := map[Rating]SchedulingInfo{
 		Again: {s.Again, ReviewLog{
-			Id:            now.UnixNano(),
-			CardId:        card.Id,
 			Rating:        Again,
 			ScheduledDays: s.Again.ScheduledDays,
 			ElapsedDays:   card.ElapsedDays,
@@ -95,8 +93,6 @@ func (s *SchedulingCards) recordLog(card Card, now time.Time) map[Rating]Schedul
 			State:         card.State,
 		}},
 		Hard: {s.Hard, ReviewLog{
-			Id:            now.UnixNano(),
-			CardId:        card.Id,
 			Rating:        Hard,
 			ScheduledDays: s.Hard.ScheduledDays,
 			ElapsedDays:   card.ElapsedDays,
@@ -104,8 +100,6 @@ func (s *SchedulingCards) recordLog(card Card, now time.Time) map[Rating]Schedul
 			State:         card.State,
 		}},
 		Good: {s.Good, ReviewLog{
-			Id:            now.UnixNano(),
-			CardId:        card.Id,
 			Rating:        Good,
 			ScheduledDays: s.Good.ScheduledDays,
 			ElapsedDays:   card.ElapsedDays,
@@ -113,8 +107,6 @@ func (s *SchedulingCards) recordLog(card Card, now time.Time) map[Rating]Schedul
 			State:         card.State,
 		}},
 		Easy: {s.Easy, ReviewLog{
-			Id:            now.UnixNano(),
-			CardId:        card.Id,
 			Rating:        Easy,
 			ScheduledDays: s.Easy.ScheduledDays,
 			ElapsedDays:   card.ElapsedDays,

@@ -29,7 +29,6 @@ func DefaultParam() Parameters {
 }
 
 type Card struct {
-	Id            int64     `json:"Id"`
 	Due           time.Time `json:"Due"`
 	Stability     float64   `json:"Stability"`
 	Difficulty    float64   `json:"Difficulty"`
@@ -43,7 +42,6 @@ type Card struct {
 
 func NewCard() Card {
 	return Card{
-		Id:            time.Now().UnixNano(),
 		Due:           time.Time{},
 		Stability:     0,
 		Difficulty:    0,
@@ -57,8 +55,6 @@ func NewCard() Card {
 }
 
 type ReviewLog struct {
-	Id            int64     `json:"Id"`
-	CardId        int64     `json:"CardId"`
 	Rating        Rating    `json:"Rating"`
 	ScheduledDays uint64    `json:"ScheduledDays"`
 	ElapsedDays   uint64    `json:"ElapsedDays"`
