@@ -28,8 +28,8 @@ func (p *Parameters) Repeat(card Card, now time.Time) map[Rating]SchedulingInfo 
 		s.Easy.ScheduledDays = uint64(easyInterval)
 		s.Easy.Due = now.Add(time.Duration(easyInterval) * 24 * time.Hour)
 	case Learning, Relearning:
-		hardInterval := p.nextInterval(s.Hard.Stability)
-		goodInterval := math.Max(p.nextInterval(s.Good.Stability), hardInterval+1)
+		hardInterval := 0.0
+		goodInterval := p.nextInterval(s.Good.Stability)
 		easyInterval := math.Max(p.nextInterval(s.Easy.Stability*p.EasyBonus), goodInterval+1)
 
 		s.schedule(now, hardInterval, goodInterval, easyInterval)
@@ -60,7 +60,7 @@ func (s *SchedulingCards) updateState(state State) {
 		s.Again.Lapses += 1
 	case Learning, Relearning:
 		s.Again.State = state
-		s.Hard.State = Review
+		s.Hard.State = state
 		s.Good.State = Review
 		s.Easy.State = Review
 	case Review:
@@ -78,7 +78,11 @@ func (s *SchedulingCards) schedule(now time.Time, hardInterval float64, goodInte
 	s.Good.ScheduledDays = uint64(goodInterval)
 	s.Easy.ScheduledDays = uint64(easyInterval)
 	s.Again.Due = now.Add(5 * time.Minute)
-	s.Hard.Due = now.Add(time.Duration(hardInterval) * 24 * time.Hour)
+	if hardInterval > 0 {
+		s.Hard.Due = now.Add(time.Duration(hardInterval) * 24 * time.Hour)
+	} else {
+		s.Hard.Due = now.Add(10 * time.Minute)
+	}
 	s.Good.Due = now.Add(time.Duration(goodInterval) * 24 * time.Hour)
 	s.Easy.Due = now.Add(time.Duration(easyInterval) * 24 * time.Hour)
 }
