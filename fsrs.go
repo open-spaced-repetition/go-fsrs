@@ -13,7 +13,7 @@ func (p *Parameters) Repeat(card Card, now time.Time) map[Rating]SchedulingInfo 
 	}
 	card.LastReview = now
 	card.Reps += 1
-	s := new(SchedulingCards)
+	s := new(schedulingCards)
 	s.init(card)
 	s.updateState(card.State)
 
@@ -50,7 +50,7 @@ func (p *Parameters) Repeat(card Card, now time.Time) map[Rating]SchedulingInfo 
 	return s.recordLog(card, now)
 }
 
-func (s *SchedulingCards) updateState(state State) {
+func (s *schedulingCards) updateState(state State) {
 	switch state {
 	case New:
 		s.Again.State = Learning
@@ -72,7 +72,7 @@ func (s *SchedulingCards) updateState(state State) {
 	}
 }
 
-func (s *SchedulingCards) schedule(now time.Time, hardInterval float64, goodInterval float64, easyInterval float64) {
+func (s *schedulingCards) schedule(now time.Time, hardInterval float64, goodInterval float64, easyInterval float64) {
 	s.Again.ScheduledDays = 0
 	s.Hard.ScheduledDays = uint64(hardInterval)
 	s.Good.ScheduledDays = uint64(goodInterval)
@@ -87,7 +87,7 @@ func (s *SchedulingCards) schedule(now time.Time, hardInterval float64, goodInte
 	s.Easy.Due = now.Add(time.Duration(easyInterval) * 24 * time.Hour)
 }
 
-func (s *SchedulingCards) recordLog(card Card, now time.Time) map[Rating]SchedulingInfo {
+func (s *schedulingCards) recordLog(card Card, now time.Time) map[Rating]SchedulingInfo {
 	m := map[Rating]SchedulingInfo{
 		Again: {s.Again, ReviewLog{
 			Rating:        Again,
@@ -121,7 +121,7 @@ func (s *SchedulingCards) recordLog(card Card, now time.Time) map[Rating]Schedul
 	return m
 }
 
-func (p *Parameters) initDS(s *SchedulingCards) {
+func (p *Parameters) initDS(s *schedulingCards) {
 	s.Again.Difficulty = p.initDifficulty(Again)
 	s.Again.Stability = p.initStability(Again)
 	s.Hard.Difficulty = p.initDifficulty(Hard)
@@ -132,7 +132,7 @@ func (p *Parameters) initDS(s *SchedulingCards) {
 	s.Easy.Stability = p.initStability(Easy)
 }
 
-func (p *Parameters) nextDS(s *SchedulingCards, lastD float64, lastS float64, retrievability float64) {
+func (p *Parameters) nextDS(s *schedulingCards, lastD float64, lastS float64, retrievability float64) {
 	s.Again.Difficulty = p.nextDifficulty(lastD, Again)
 	s.Again.Stability = p.nextForgetStability(s.Again.Difficulty, lastS, retrievability)
 	s.Hard.Difficulty = p.nextDifficulty(lastD, Hard)
