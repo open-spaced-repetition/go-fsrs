@@ -3,11 +3,11 @@ package fsrs
 type Weights [13]float64
 
 type Parameters struct {
-	RequestRetention float64
-	MaximumInterval  float64
-	EasyBonus        float64
-	HardFactor       float64
-	W                Weights
+	RequestRetention float64 `json:"RequestRetention"`
+	MaximumInterval  float64 `json:"MaximumInterval"`
+	EasyBonus        float64 `json:"EasyBonus"`
+	HardFactor       float64 `json:"HardFactor"`
+	W                Weights `json:"Weights"`
 }
 
 func DefaultParam() Parameters {
