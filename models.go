@@ -38,14 +38,14 @@ type ReviewLog struct {
 	State         State     `json:"State"`
 }
 
-type SchedulingCards struct {
+type schedulingCards struct {
 	Again Card
 	Hard  Card
 	Good  Card
 	Easy  Card
 }
 
-func (s *SchedulingCards) init(card Card) {
+func (s *schedulingCards) init(card Card) {
 	s.Again = card
 	s.Hard = card
 	s.Good = card
