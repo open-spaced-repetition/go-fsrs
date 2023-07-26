@@ -183,9 +183,9 @@ func (p *Parameters) nextRecallStability(d float64, s float64, r float64, rating
 	return s * (1 + math.Exp(p.W[8])*
 		(11-d)*
 		math.Pow(s, -p.W[9])*
-		(math.Exp((1-r)*p.W[10])-1)) *
-		hardPenalty *
-		easyBonus
+		(math.Exp((1-r)*p.W[10])-1)*
+		hardPenalty*
+		easyBonus)
 }
 
 func (p *Parameters) nextForgetStability(d float64, s float64, r float64) float64 {
