@@ -37,7 +37,7 @@ func (p *Parameters) Repeat(card Card, now time.Time) map[Rating]SchedulingInfo 
 		interval := float64(card.ElapsedDays)
 		lastD := card.Difficulty
 		lastS := card.Stability
-		retrievability := math.Exp(math.Log(0.9) * interval / lastS)
+		retrievability := math.Pow(1+interval/(9*lastS), -1)
 		p.nextDS(s, lastD, lastS, retrievability)
 
 		hardInterval := p.nextInterval(s.Hard.Stability)
