@@ -24,13 +24,13 @@ func (p *Parameters) Repeat(card Card, now time.Time) map[Rating]SchedulingInfo 
 		s.Again.Due = now.Add(1 * time.Minute)
 		s.Hard.Due = now.Add(5 * time.Minute)
 		s.Good.Due = now.Add(10 * time.Minute)
-		easyInterval := p.nextInterval(s.Easy.Stability * p.EasyBonus)
+		easyInterval := p.nextInterval(s.Easy.Stability)
 		s.Easy.ScheduledDays = uint64(easyInterval)
 		s.Easy.Due = now.Add(time.Duration(easyInterval) * 24 * time.Hour)
 	case Learning, Relearning:
 		hardInterval := 0.0
 		goodInterval := p.nextInterval(s.Good.Stability)
-		easyInterval := math.Max(p.nextInterval(s.Easy.Stability*p.EasyBonus), goodInterval+1)
+		easyInterval := math.Max(p.nextInterval(s.Easy.Stability), goodInterval+1)
 
 		s.schedule(now, hardInterval, goodInterval, easyInterval)
 	case Review:
@@ -40,11 +40,11 @@ func (p *Parameters) Repeat(card Card, now time.Time) map[Rating]SchedulingInfo 
 		retrievability := math.Exp(math.Log(0.9) * interval / lastS)
 		p.nextDS(s, lastD, lastS, retrievability)
 
-		hardInterval := p.nextInterval(lastS * p.HardFactor)
+		hardInterval := p.nextInterval(s.Hard.Stability)
 		goodInterval := p.nextInterval(s.Good.Stability)
 		hardInterval = math.Min(hardInterval, goodInterval)
 		goodInterval = math.Max(goodInterval, hardInterval+1)
-		easyInterval := math.Max(p.nextInterval(s.Easy.Stability*p.EasyBonus), goodInterval+1)
+		easyInterval := math.Max(p.nextInterval(s.Easy.Stability), goodInterval+1)
 		s.schedule(now, hardInterval, goodInterval, easyInterval)
 	}
 	return s.recordLog(card, now)
@@ -136,18 +136,18 @@ func (p *Parameters) nextDS(s *schedulingCards, lastD float64, lastS float64, re
 	s.Again.Difficulty = p.nextDifficulty(lastD, Again)
 	s.Again.Stability = p.nextForgetStability(s.Again.Difficulty, lastS, retrievability)
 	s.Hard.Difficulty = p.nextDifficulty(lastD, Hard)
-	s.Hard.Stability = p.nextRecallStability(s.Hard.Difficulty, lastS, retrievability)
+	s.Hard.Stability = p.nextRecallStability(s.Hard.Difficulty, lastS, retrievability, Hard)
 	s.Good.Difficulty = p.nextDifficulty(lastD, Good)
-	s.Good.Stability = p.nextRecallStability(s.Good.Difficulty, lastS, retrievability)
+	s.Good.Stability = p.nextRecallStability(s.Good.Difficulty, lastS, retrievability, Good)
 	s.Easy.Difficulty = p.nextDifficulty(lastD, Easy)
-	s.Easy.Stability = p.nextRecallStability(s.Easy.Difficulty, lastS, retrievability)
+	s.Easy.Stability = p.nextRecallStability(s.Easy.Difficulty, lastS, retrievability, Easy)
 }
 
 func (p *Parameters) initStability(r Rating) float64 {
-	return math.Max(p.W[0]+p.W[1]*float64(r), 0.1)
+	return math.Max(p.W[r-1], 0.1)
 }
 func (p *Parameters) initDifficulty(r Rating) float64 {
-	return constrainDifficulty(p.W[2] + p.W[3]*float64(r-2))
+	return constrainDifficulty(p.W[4] - p.W[5]*float64(r-3))
 }
 
 func constrainDifficulty(d float64) float64 {
@@ -155,27 +155,42 @@ func constrainDifficulty(d float64) float64 {
 }
 
 func (p *Parameters) nextInterval(s float64) float64 {
-	newInterval := s * math.Log(p.RequestRetention) / math.Log(0.9)
+	newInterval := s * 9 * (1/p.RequestRetention - 1)
 	return math.Max(math.Min(math.Round(newInterval), p.MaximumInterval), 1)
 }
 
 func (p *Parameters) nextDifficulty(d float64, r Rating) float64 {
-	nextD := d + p.W[4]*float64(r-2)
-	return constrainDifficulty(p.meanReversion(p.W[2], nextD))
+	nextD := d - p.W[6]*float64(r-3)
+	return constrainDifficulty(p.meanReversion(p.W[4], nextD))
 }
 
 func (p *Parameters) meanReversion(init float64, current float64) float64 {
-	return p.W[5]*init + (1-p.W[5])*current
+	return p.W[7]*init + (1-p.W[7])*current
 }
 
-func (p *Parameters) nextRecallStability(d float64, s float64, r float64) float64 {
-	return s * (1 + math.Exp(p.W[6])*
+func (p *Parameters) nextRecallStability(d float64, s float64, r float64, rating Rating) float64 {
+	var hardPenalty, easyBonus float64
+	if rating == Hard {
+		hardPenalty = p.W[15]
+	} else {
+		hardPenalty = 1
+	}
+	if rating == Easy {
+		easyBonus = p.W[16]
+	} else {
+		easyBonus = 1
+	}
+	return s * (1 + math.Exp(p.W[8])*
 		(11-d)*
-		math.Pow(s, p.W[7])*
-		(math.Exp((1-r)*p.W[8])-1))
+		math.Pow(s, -p.W[9])*
+		(math.Exp((1-r)*p.W[10])-1)) *
+		hardPenalty *
+		easyBonus
 }
 
 func (p *Parameters) nextForgetStability(d float64, s float64, r float64) float64 {
-	return p.W[9] * math.Pow(d, p.W[10]) * math.Pow(
-		s, p.W[11]) * math.Exp((1-r)*p.W[12])
+	return p.W[11] *
+		math.Pow(d, -p.W[12]) *
+		(math.Pow(s+1, p.W[13]) - 1) *
+		math.Exp((1-r)*p.W[14])
 }

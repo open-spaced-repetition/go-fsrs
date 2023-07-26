@@ -60,7 +60,7 @@ type SchedulingInfo struct {
 type Rating int8
 
 const (
-	Again Rating = iota
+	Again Rating = iota + 1
 	Hard
 	Good
 	Easy
