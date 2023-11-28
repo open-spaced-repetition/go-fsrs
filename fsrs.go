@@ -134,13 +134,13 @@ func (p *Parameters) initDS(s *schedulingCards) {
 
 func (p *Parameters) nextDS(s *schedulingCards, lastD float64, lastS float64, retrievability float64) {
 	s.Again.Difficulty = p.nextDifficulty(lastD, Again)
-	s.Again.Stability = p.nextForgetStability(s.Again.Difficulty, lastS, retrievability)
+	s.Again.Stability = p.nextForgetStability(lastD, lastS, retrievability)
 	s.Hard.Difficulty = p.nextDifficulty(lastD, Hard)
-	s.Hard.Stability = p.nextRecallStability(s.Hard.Difficulty, lastS, retrievability, Hard)
+	s.Hard.Stability = p.nextRecallStability(lastD, lastS, retrievability, Hard)
 	s.Good.Difficulty = p.nextDifficulty(lastD, Good)
-	s.Good.Stability = p.nextRecallStability(s.Good.Difficulty, lastS, retrievability, Good)
+	s.Good.Stability = p.nextRecallStability(lastD, lastS, retrievability, Good)
 	s.Easy.Difficulty = p.nextDifficulty(lastD, Easy)
-	s.Easy.Stability = p.nextRecallStability(s.Easy.Difficulty, lastS, retrievability, Easy)
+	s.Easy.Stability = p.nextRecallStability(lastD, lastS, retrievability, Easy)
 }
 
 func (p *Parameters) initStability(r Rating) float64 {
