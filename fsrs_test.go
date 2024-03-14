@@ -85,3 +85,18 @@ func TestMemoState(t *testing.T) {
 		t.Errorf("excepted:%v, got:%v", wantDifficulty, cardDifficulty)
 	}
 }
+
+func TestNextInterval(t *testing.T) {
+	p := DefaultParam()
+	p.W = Weights{1.0171, 1.8296, 4.4145, 10.9355, 5.0965, 1.3322, 1.017, 0.0, 1.6243, 0.1369, 1.0321,
+		2.1866, 0.0661, 0.336, 1.7766, 0.1693, 2.9244}
+	var ivlList []float64
+	for i := 1; i <= 10; i++ {
+		p.RequestRetention = float64(i) / 10
+		ivlList = append(ivlList, p.nextInterval(1))
+	}
+	wantIvlList := []float64{422, 102, 43, 22, 13, 8, 4, 2, 1, 1}
+	if !reflect.DeepEqual(ivlList, wantIvlList) {
+		t.Errorf("excepted:%v, got:%v", wantIvlList, ivlList)
+	}
+}
