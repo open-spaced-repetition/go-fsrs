@@ -34,10 +34,10 @@ func (p *Parameters) Repeat(card Card, now time.Time) map[Rating]SchedulingInfo 
 
 		s.schedule(now, hardInterval, goodInterval, easyInterval)
 	case Review:
-		interval := float64(card.ElapsedDays)
+		elapsedDays := float64(card.ElapsedDays)
 		lastD := card.Difficulty
 		lastS := card.Stability
-		retrievability := math.Pow(1+interval/(9*lastS), -1)
+		retrievability := p.forgettingCurve(elapsedDays, lastS)
 		p.nextDS(s, lastD, lastS, retrievability)
 
 		hardInterval := p.nextInterval(s.Hard.Stability)
@@ -121,6 +121,10 @@ func (s *schedulingCards) recordLog(card Card, now time.Time) map[Rating]Schedul
 	return m
 }
 
+func (p *Parameters) forgettingCurve(elapsedDays float64, stability float64) float64 {
+	return math.Pow(1+p.Factor*elapsedDays/stability, p.Decay)
+}
+
 func (p *Parameters) initDS(s *schedulingCards) {
 	s.Again.Difficulty = p.initDifficulty(Again)
 	s.Again.Stability = p.initStability(Again)
@@ -155,7 +159,7 @@ func constrainDifficulty(d float64) float64 {
 }
 
 func (p *Parameters) nextInterval(s float64) float64 {
-	newInterval := s * 9 * (1/p.RequestRetention - 1)
+	newInterval := s / p.Factor * (math.Pow(p.RequestRetention, 1/p.Decay) - 1)
 	return math.Max(math.Min(math.Round(newInterval), p.MaximumInterval), 1)
 }
 

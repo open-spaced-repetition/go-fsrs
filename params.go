@@ -1,21 +1,30 @@
 package fsrs
 
+import "math"
+
 type Weights [17]float64
 
 type Parameters struct {
 	RequestRetention float64 `json:"RequestRetention"`
 	MaximumInterval  float64 `json:"MaximumInterval"`
 	W                Weights `json:"Weights"`
+	Decay            float64 `json:"Decay"`
+	Factor           float64 `json:"Factor"`
 }
 
 func DefaultParam() Parameters {
+	var Decay = -0.5
+	var Factor = math.Pow(0.9, 1/Decay) - 1
 	return Parameters{
 		RequestRetention: 0.9,
 		MaximumInterval:  36500,
 		W:                DefaultWeights(),
+		Decay:            Decay,
+		Factor:           Factor,
 	}
 }
 
 func DefaultWeights() Weights {
-	return Weights{0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61}
+	return Weights{0.5701, 1.4436, 4.1386, 10.9355, 5.1443, 1.2006, 0.8627, 0.0362, 1.629, 0.1342, 1.0166, 2.1174,
+		0.0839, 0.3204, 1.4676, 0.219, 2.8237}
 }
