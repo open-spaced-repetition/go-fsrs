@@ -57,7 +57,6 @@ func (s *schedulingCards) updateState(state State) {
 		s.Hard.State = Learning
 		s.Good.State = Learning
 		s.Easy.State = Review
-		s.Again.Lapses += 1
 	case Learning, Relearning:
 		s.Again.State = state
 		s.Hard.State = state
