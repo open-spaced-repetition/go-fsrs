@@ -2,7 +2,7 @@ package fsrs
 
 import "math"
 
-type Weights [17]float64
+type Weights [19]float64
 
 type Parameters struct {
 	RequestRetention float64 `json:"RequestRetention"`
@@ -25,6 +25,23 @@ func DefaultParam() Parameters {
 }
 
 func DefaultWeights() Weights {
-	return Weights{0.5701, 1.4436, 4.1386, 10.9355, 5.1443, 1.2006, 0.8627, 0.0362, 1.629, 0.1342, 1.0166, 2.1174,
-		0.0839, 0.3204, 1.4676, 0.219, 2.8237}
+	return Weights{0.4197,
+		1.1869,
+		3.0412,
+		15.2441,
+		7.1434,
+		0.6477,
+		1.0007,
+		0.0674,
+		1.6597,
+		0.1712,
+		1.1178,
+		2.0225,
+		0.0904,
+		0.3025,
+		2.1214,
+		0.2498,
+		2.9466,
+		0.4891,
+		0.6468}
 }
