@@ -10,6 +10,7 @@ type Parameters struct {
 	W                Weights `json:"Weights"`
 	Decay            float64 `json:"Decay"`
 	Factor           float64 `json:"Factor"`
+	EnableShortTerm  bool    `json:"EnableShortTerm"`
 }
 
 func DefaultParam() Parameters {
@@ -21,6 +22,7 @@ func DefaultParam() Parameters {
 		W:                DefaultWeights(),
 		Decay:            Decay,
 		Factor:           Factor,
+		EnableShortTerm:  true,
 	}
 }
 

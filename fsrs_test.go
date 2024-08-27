@@ -34,14 +34,15 @@ func roundFloat(val float64, precision uint) float64 {
 	return math.Round(val*ratio) / ratio
 }
 
-func TestExample(t *testing.T) {
+func TestBasicSchedulerExample(t *testing.T) {
 	p := DefaultParam()
 	p.W = testWeights
+	fsrs := NewFSRS(p)
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 	var ivlList []uint64
 	var stateList []State
-	schedulingCards := p.Repeat(card, now)
+	schedulingCards := fsrs.Repeat(card, now)
 
 	var ratings = []Rating{Good, Good, Good, Good, Good, Good, Again, Again, Good, Good, Good, Good, Good}
 	var rating Rating
@@ -54,7 +55,7 @@ func TestExample(t *testing.T) {
 		revlog = schedulingCards[rating].ReviewLog
 		stateList = append(stateList, revlog.State)
 		now = card.Due
-		schedulingCards = p.Repeat(card, now)
+		schedulingCards = fsrs.Repeat(card, now)
 	}
 
 	wantIvlList := []uint64{0, 4, 17, 62, 198, 563, 0, 0, 9, 27, 74, 190, 457}
@@ -67,13 +68,13 @@ func TestExample(t *testing.T) {
 	}
 }
 
-func TestMemoState(t *testing.T) {
+func TestBasicSchedulerMemoState(t *testing.T) {
 	p := DefaultParam()
 	p.W = testWeights
+	fsrs := NewFSRS(p)
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
-
-	schedulingCards := p.Repeat(card, now)
+	schedulingCards := fsrs.Repeat(card, now)
 	var ratings = []Rating{Again, Good, Good, Good, Good, Good}
 	var ivlList = []uint64{0, 0, 1, 3, 8, 21}
 	var rating Rating
@@ -81,13 +82,12 @@ func TestMemoState(t *testing.T) {
 		rating = ratings[i]
 		card = schedulingCards[rating].Card
 		now = now.Add(time.Duration(ivlList[i]) * 24 * time.Hour)
-		schedulingCards = p.Repeat(card, now)
+		schedulingCards = fsrs.Repeat(card, now)
 	}
 	wantStability := 71.4554
 	cardStability := roundFloat(schedulingCards[Good].Card.Stability, 4)
 	wantDifficulty := 5.0976
 	cardDifficulty := roundFloat(schedulingCards[Good].Card.Difficulty, 4)
-
 	if !reflect.DeepEqual(wantStability, cardStability) {
 		t.Errorf("excepted:%v, got:%v", wantStability, cardStability)
 	}
@@ -99,10 +99,11 @@ func TestMemoState(t *testing.T) {
 
 func TestNextInterval(t *testing.T) {
 	p := DefaultParam()
+	fsrs := NewFSRS(p)
 	var ivlList []float64
 	for i := 1; i <= 10; i++ {
-		p.RequestRetention = float64(i) / 10
-		ivlList = append(ivlList, p.nextInterval(1))
+		fsrs.RequestRetention = float64(i) / 10
+		ivlList = append(ivlList, fsrs.nextInterval(1))
 	}
 	wantIvlList := []float64{422, 102, 43, 22, 13, 8, 4, 2, 1, 1}
 	if !reflect.DeepEqual(ivlList, wantIvlList) {
