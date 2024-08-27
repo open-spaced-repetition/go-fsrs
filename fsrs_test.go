@@ -110,3 +110,41 @@ func TestNextInterval(t *testing.T) {
 		t.Errorf("excepted:%v, got:%v", wantIvlList, ivlList)
 	}
 }
+
+func TestLongTermScheduler(t *testing.T) {
+	p := DefaultParam()
+	p.W = testWeights
+	p.EnableShortTerm = false
+	fsrs := NewFSRS(p)
+	card := NewCard()
+	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
+	ratings := []Rating{Good, Good, Good, Good, Good, Good, Again, Again, Good, Good, Good, Good, Good}
+	ivlHistory := []uint64{}
+	sHisotry := []float64{}
+	dHistory := []float64{}
+	for _, rating := range ratings {
+		record := fsrs.Repeat(card, now)[rating]
+		next := fsrs.Next(card, now, rating)
+		if !reflect.DeepEqual(record.Card, next.Card) {
+			t.Errorf("excepted:%v, got:%v", record.Card, next.Card)
+		}
+
+		card = record.Card
+		ivlHistory = append(ivlHistory, (card.ScheduledDays))
+		sHisotry = append(sHisotry, roundFloat(card.Stability, 4))
+		dHistory = append(dHistory, roundFloat(card.Difficulty, 4))
+		now = card.Due
+	}
+	wantIvlHistory := []uint64{3, 13, 48, 155, 445, 1158, 17, 3, 9, 27, 74, 190, 457}
+	if !reflect.DeepEqual(ivlHistory, wantIvlHistory) {
+		t.Errorf("excepted:%v, got:%v", wantIvlHistory, ivlHistory)
+	}
+	wantSHistory := []float64{3.0412, 13.0913, 48.1585, 154.9373, 445.0556, 1158.0778, 16.6306, 2.9888, 9.4633, 26.9474, 73.9723, 189.7037, 457.4379}
+	if !reflect.DeepEqual(sHisotry, wantSHistory) {
+		t.Errorf("excepted:%v, got:%v", wantSHistory, sHisotry)
+	}
+	wantDHistory := []float64{4.4909, 4.2666, 4.0575, 3.8624, 3.6804, 3.5108, 5.219, 6.8122, 6.4314, 6.0763, 5.7452, 5.4363, 5.1483}
+	if !reflect.DeepEqual(dHistory, wantDHistory) {
+		t.Errorf("excepted:%v, got:%v", wantDHistory, dHistory)
+	}
+}
