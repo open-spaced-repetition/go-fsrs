@@ -252,7 +252,7 @@ func (lts *LongTermScheduler) newState(grade Rating) SchedulingInfo {
 	lts.current.ScheduledDays = 0
 	lts.current.ElapsedDays = 0
 
-	nextAgain := lts.current // 假设有深拷贝方法
+	nextAgain := lts.current
 	nextHard := lts.current
 	nextGood := lts.current
 	nextEasy := lts.current
