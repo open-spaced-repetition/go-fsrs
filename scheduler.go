@@ -10,16 +10,16 @@ type AbstractScheduler struct {
 	current         Card
 	now             time.Time
 	next            RecordLog
-	algorithm       Parameters
+	parameters      Parameters
 	newStateFn      func(Rating) SchedulingInfo
 	learningStateFn func(Rating) SchedulingInfo
 	reviewStateFn   func(Rating) SchedulingInfo
 }
 
-func NewAbstractScheduler(card Card, now time.Time, algorithm Parameters) *AbstractScheduler {
+func NewAbstractScheduler(card Card, now time.Time, parameters Parameters) *AbstractScheduler {
 	as := &AbstractScheduler{
-		algorithm: algorithm,
-		next:      make(RecordLog),
+		parameters: parameters,
+		next:       make(RecordLog),
 	}
 	as.last = card
 	as.current = card
@@ -84,8 +84,8 @@ func (bs *BasicScheduler) newState(grade Rating) SchedulingInfo {
 	}
 
 	next := bs.current
-	next.Difficulty = bs.algorithm.initDifficulty(grade)
-	next.Stability = bs.algorithm.initStability(grade)
+	next.Difficulty = bs.parameters.initDifficulty(grade)
+	next.Stability = bs.parameters.initStability(grade)
 
 	switch grade {
 	case Again:
@@ -101,7 +101,7 @@ func (bs *BasicScheduler) newState(grade Rating) SchedulingInfo {
 		next.Due = bs.now.Add(10 * time.Minute)
 		next.State = Learning
 	case Easy:
-		easyInterval := bs.algorithm.nextInterval(
+		easyInterval := bs.parameters.nextInterval(
 			next.Stability,
 		)
 		next.ScheduledDays = uint64(easyInterval)
@@ -124,8 +124,8 @@ func (bs *BasicScheduler) learningState(grade Rating) SchedulingInfo {
 	}
 
 	next := bs.current
-	next.Difficulty = bs.algorithm.nextDifficulty(bs.last.Difficulty, grade)
-	next.Stability = bs.algorithm.shortTermStability(bs.last.Stability, grade)
+	next.Difficulty = bs.parameters.nextDifficulty(bs.last.Difficulty, grade)
+	next.Stability = bs.parameters.shortTermStability(bs.last.Stability, grade)
 
 	switch grade {
 	case Again:
@@ -137,15 +137,15 @@ func (bs *BasicScheduler) learningState(grade Rating) SchedulingInfo {
 		next.Due = bs.now.Add(10 * time.Minute)
 		next.State = bs.last.State
 	case Good:
-		goodInterval := bs.algorithm.nextInterval(next.Stability)
+		goodInterval := bs.parameters.nextInterval(next.Stability)
 		next.ScheduledDays = uint64(goodInterval)
 		next.Due = bs.now.Add(time.Duration(goodInterval) * 24 * time.Hour)
 		next.State = Review
 	case Easy:
-		goodStability := bs.algorithm.shortTermStability(bs.last.Stability, Good)
-		goodInterval := bs.algorithm.nextInterval(goodStability)
+		goodStability := bs.parameters.shortTermStability(bs.last.Stability, Good)
+		goodInterval := bs.parameters.nextInterval(goodStability)
 		easyInterval := math.Max(
-			bs.algorithm.nextInterval(next.Stability),
+			bs.parameters.nextInterval(next.Stability),
 			float64(goodInterval)+1,
 		)
 		next.ScheduledDays = uint64(easyInterval)
@@ -170,7 +170,7 @@ func (bs *BasicScheduler) reviewState(grade Rating) SchedulingInfo {
 	interval := float64(bs.current.ElapsedDays)
 	difficulty := bs.last.Difficulty
 	stability := bs.last.Stability
-	retrievability := bs.algorithm.forgettingCurve(interval, stability)
+	retrievability := bs.parameters.forgettingCurve(interval, stability)
 
 	nextAgain := bs.current
 	nextHard := bs.current
@@ -196,26 +196,26 @@ func (bs *BasicScheduler) reviewState(grade Rating) SchedulingInfo {
 }
 
 func (bs *BasicScheduler) nextDs(nextAgain, nextHard, nextGood, nextEasy *Card, difficulty, stability, retrievability float64) {
-	nextAgain.Difficulty = bs.algorithm.nextDifficulty(difficulty, Again)
-	nextAgain.Stability = bs.algorithm.nextForgetStability(difficulty, stability, retrievability)
+	nextAgain.Difficulty = bs.parameters.nextDifficulty(difficulty, Again)
+	nextAgain.Stability = bs.parameters.nextForgetStability(difficulty, stability, retrievability)
 
-	nextHard.Difficulty = bs.algorithm.nextDifficulty(difficulty, Hard)
-	nextHard.Stability = bs.algorithm.nextRecallStability(difficulty, stability, retrievability, Hard)
+	nextHard.Difficulty = bs.parameters.nextDifficulty(difficulty, Hard)
+	nextHard.Stability = bs.parameters.nextRecallStability(difficulty, stability, retrievability, Hard)
 
-	nextGood.Difficulty = bs.algorithm.nextDifficulty(difficulty, Good)
-	nextGood.Stability = bs.algorithm.nextRecallStability(difficulty, stability, retrievability, Good)
+	nextGood.Difficulty = bs.parameters.nextDifficulty(difficulty, Good)
+	nextGood.Stability = bs.parameters.nextRecallStability(difficulty, stability, retrievability, Good)
 
-	nextEasy.Difficulty = bs.algorithm.nextDifficulty(difficulty, Easy)
-	nextEasy.Stability = bs.algorithm.nextRecallStability(difficulty, stability, retrievability, Easy)
+	nextEasy.Difficulty = bs.parameters.nextDifficulty(difficulty, Easy)
+	nextEasy.Stability = bs.parameters.nextRecallStability(difficulty, stability, retrievability, Easy)
 }
 
 func (bs *BasicScheduler) nextInterval(nextAgain, nextHard, nextGood, nextEasy *Card) {
-	hardInterval := bs.algorithm.nextInterval(nextHard.Stability)
-	goodInterval := bs.algorithm.nextInterval(nextGood.Stability)
+	hardInterval := bs.parameters.nextInterval(nextHard.Stability)
+	goodInterval := bs.parameters.nextInterval(nextGood.Stability)
 	hardInterval = math.Min(hardInterval, goodInterval)
 	goodInterval = math.Max(goodInterval, hardInterval+1)
 	easyInterval := math.Max(
-		bs.algorithm.nextInterval(nextEasy.Stability),
+		bs.parameters.nextInterval(nextEasy.Stability),
 		goodInterval+1,
 	)
 
@@ -267,17 +267,17 @@ func (lts *LongTermScheduler) newState(grade Rating) SchedulingInfo {
 }
 
 func (lts *LongTermScheduler) initDs(nextAgain, nextHard, nextGood, nextEasy *Card) {
-	nextAgain.Difficulty = lts.algorithm.initDifficulty(Again)
-	nextAgain.Stability = lts.algorithm.initStability(Again)
+	nextAgain.Difficulty = lts.parameters.initDifficulty(Again)
+	nextAgain.Stability = lts.parameters.initStability(Again)
 
-	nextHard.Difficulty = lts.algorithm.initDifficulty(Hard)
-	nextHard.Stability = lts.algorithm.initStability(Hard)
+	nextHard.Difficulty = lts.parameters.initDifficulty(Hard)
+	nextHard.Stability = lts.parameters.initStability(Hard)
 
-	nextGood.Difficulty = lts.algorithm.initDifficulty(Good)
-	nextGood.Stability = lts.algorithm.initStability(Good)
+	nextGood.Difficulty = lts.parameters.initDifficulty(Good)
+	nextGood.Stability = lts.parameters.initStability(Good)
 
-	nextEasy.Difficulty = lts.algorithm.initDifficulty(Easy)
-	nextEasy.Stability = lts.algorithm.initStability(Easy)
+	nextEasy.Difficulty = lts.parameters.initDifficulty(Easy)
+	nextEasy.Stability = lts.parameters.initStability(Easy)
 }
 
 func (lts *LongTermScheduler) LearningState(grade Rating) SchedulingInfo {
@@ -293,7 +293,7 @@ func (lts *LongTermScheduler) ReviewState(grade Rating) SchedulingInfo {
 	interval := float64(lts.current.ElapsedDays)
 	difficulty := lts.last.Difficulty
 	stability := lts.last.Stability
-	retrievability := lts.algorithm.forgettingCurve(interval, stability)
+	retrievability := lts.parameters.forgettingCurve(interval, stability)
 
 	nextAgain := lts.current
 	nextHard := lts.current
@@ -310,24 +310,24 @@ func (lts *LongTermScheduler) ReviewState(grade Rating) SchedulingInfo {
 }
 
 func (lts *LongTermScheduler) nextDs(nextAgain, nextHard, nextGood, nextEasy *Card, difficulty, stability, retrievability float64) {
-	nextAgain.Difficulty = lts.algorithm.nextDifficulty(difficulty, Again)
-	nextAgain.Stability = lts.algorithm.nextForgetStability(difficulty, stability, retrievability)
+	nextAgain.Difficulty = lts.parameters.nextDifficulty(difficulty, Again)
+	nextAgain.Stability = lts.parameters.nextForgetStability(difficulty, stability, retrievability)
 
-	nextHard.Difficulty = lts.algorithm.nextDifficulty(difficulty, Hard)
-	nextHard.Stability = lts.algorithm.nextRecallStability(difficulty, stability, retrievability, Hard)
+	nextHard.Difficulty = lts.parameters.nextDifficulty(difficulty, Hard)
+	nextHard.Stability = lts.parameters.nextRecallStability(difficulty, stability, retrievability, Hard)
 
-	nextGood.Difficulty = lts.algorithm.nextDifficulty(difficulty, Good)
-	nextGood.Stability = lts.algorithm.nextRecallStability(difficulty, stability, retrievability, Good)
+	nextGood.Difficulty = lts.parameters.nextDifficulty(difficulty, Good)
+	nextGood.Stability = lts.parameters.nextRecallStability(difficulty, stability, retrievability, Good)
 
-	nextEasy.Difficulty = lts.algorithm.nextDifficulty(difficulty, Easy)
-	nextEasy.Stability = lts.algorithm.nextRecallStability(difficulty, stability, retrievability, Easy)
+	nextEasy.Difficulty = lts.parameters.nextDifficulty(difficulty, Easy)
+	nextEasy.Stability = lts.parameters.nextRecallStability(difficulty, stability, retrievability, Easy)
 }
 
 func (lts *LongTermScheduler) nextInterval(nextAgain, nextHard, nextGood, nextEasy *Card) {
-	againInterval := lts.algorithm.nextInterval(nextAgain.Stability)
-	hardInterval := lts.algorithm.nextInterval(nextHard.Stability)
-	goodInterval := lts.algorithm.nextInterval(nextGood.Stability)
-	easyInterval := lts.algorithm.nextInterval(nextEasy.Stability)
+	againInterval := lts.parameters.nextInterval(nextAgain.Stability)
+	hardInterval := lts.parameters.nextInterval(nextHard.Stability)
+	goodInterval := lts.parameters.nextInterval(nextGood.Stability)
+	easyInterval := lts.parameters.nextInterval(nextEasy.Stability)
 
 	againInterval = math.Min(againInterval, hardInterval)
 	hardInterval = math.Max(hardInterval, againInterval+1)
@@ -385,7 +385,7 @@ type Scheduler interface {
 
 type FSRS struct {
 	Parameters
-	Scheduler func(card Card, now time.Time, algorithm Parameters) Scheduler
+	Scheduler func(card Card, now time.Time, parameters Parameters) Scheduler
 }
 
 func NewFSRS(param Parameters) *FSRS {
@@ -396,8 +396,8 @@ func NewFSRS(param Parameters) *FSRS {
 	return fsrs
 }
 
-func NewBasicScheduler(card Card, now time.Time, algorithm Parameters) Scheduler {
-	abstractScheduler := NewAbstractScheduler(card, now, algorithm)
+func NewBasicScheduler(card Card, now time.Time, parameters Parameters) Scheduler {
+	abstractScheduler := NewAbstractScheduler(card, now, parameters)
 	basicScheduler := &BasicScheduler{
 		AbstractScheduler: *abstractScheduler,
 	}
@@ -407,8 +407,8 @@ func NewBasicScheduler(card Card, now time.Time, algorithm Parameters) Scheduler
 	return basicScheduler
 }
 
-func NewLongTermScheduler(card Card, now time.Time, algorithm Parameters) Scheduler {
-	abstractScheduler := NewAbstractScheduler(card, now, algorithm)
+func NewLongTermScheduler(card Card, now time.Time, parameters Parameters) Scheduler {
+	abstractScheduler := NewAbstractScheduler(card, now, parameters)
 	longTermScheduler := &LongTermScheduler{
 		AbstractScheduler: *abstractScheduler,
 	}
@@ -420,12 +420,12 @@ func NewLongTermScheduler(card Card, now time.Time, algorithm Parameters) Schedu
 
 func (f *FSRS) updateScheduler() {
 	if f.Parameters.EnableShortTerm {
-		f.Scheduler = func(card Card, now time.Time, algorithm Parameters) Scheduler {
-			return NewBasicScheduler(card, now, algorithm)
+		f.Scheduler = func(card Card, now time.Time, parameters Parameters) Scheduler {
+			return NewBasicScheduler(card, now, parameters)
 		}
 	} else {
-		f.Scheduler = func(card Card, now time.Time, algorithm Parameters) Scheduler {
-			return NewLongTermScheduler(card, now, algorithm)
+		f.Scheduler = func(card Card, now time.Time, parameters Parameters) Scheduler {
+			return NewLongTermScheduler(card, now, parameters)
 		}
 	}
 }
