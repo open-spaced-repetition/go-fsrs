@@ -28,17 +28,22 @@ func (p *Parameters) Repeat(card Card, now time.Time) map[Rating]SchedulingInfo 
 		s.Easy.ScheduledDays = uint64(easyInterval)
 		s.Easy.Due = now.Add(time.Duration(easyInterval) * 24 * time.Hour)
 	case Learning, Relearning:
+		interval := card.ElapsedDays
+		lastD := card.Difficulty
+		lastS := card.Stability
+		retrievability := p.forgettingCurve(float64(interval), lastS)
+		p.nextDS(s, lastD, lastS, retrievability, card.State)
+
 		hardInterval := 0.0
 		goodInterval := p.nextInterval(s.Good.Stability)
 		easyInterval := math.Max(p.nextInterval(s.Easy.Stability), goodInterval+1)
-
 		s.schedule(now, hardInterval, goodInterval, easyInterval)
 	case Review:
 		elapsedDays := float64(card.ElapsedDays)
 		lastD := card.Difficulty
 		lastS := card.Stability
 		retrievability := p.forgettingCurve(elapsedDays, lastS)
-		p.nextDS(s, lastD, lastS, retrievability)
+		p.nextDS(s, lastD, lastS, retrievability, card.State)
 
 		hardInterval := p.nextInterval(s.Hard.Stability)
 		goodInterval := p.nextInterval(s.Good.Stability)
@@ -135,22 +140,29 @@ func (p *Parameters) initDS(s *schedulingCards) {
 	s.Easy.Stability = p.initStability(Easy)
 }
 
-func (p *Parameters) nextDS(s *schedulingCards, lastD float64, lastS float64, retrievability float64) {
+func (p *Parameters) nextDS(s *schedulingCards, lastD float64, lastS float64, retrievability float64, state State) {
 	s.Again.Difficulty = p.nextDifficulty(lastD, Again)
-	s.Again.Stability = p.nextForgetStability(lastD, lastS, retrievability)
 	s.Hard.Difficulty = p.nextDifficulty(lastD, Hard)
-	s.Hard.Stability = p.nextRecallStability(lastD, lastS, retrievability, Hard)
 	s.Good.Difficulty = p.nextDifficulty(lastD, Good)
-	s.Good.Stability = p.nextRecallStability(lastD, lastS, retrievability, Good)
 	s.Easy.Difficulty = p.nextDifficulty(lastD, Easy)
-	s.Easy.Stability = p.nextRecallStability(lastD, lastS, retrievability, Easy)
+	if state == Learning || state == Relearning {
+		s.Again.Stability = p.shortTermStability(lastS, Again)
+		s.Hard.Stability = p.shortTermStability(lastS, Hard)
+		s.Good.Stability = p.shortTermStability(lastS, Good)
+		s.Easy.Stability = p.shortTermStability(lastS, Easy)
+	} else if state == Review {
+		s.Again.Stability = p.nextForgetStability(lastD, lastS, retrievability)
+		s.Hard.Stability = p.nextRecallStability(lastD, lastS, retrievability, Hard)
+		s.Good.Stability = p.nextRecallStability(lastD, lastS, retrievability, Good)
+		s.Easy.Stability = p.nextRecallStability(lastD, lastS, retrievability, Easy)
+	}
 }
 
 func (p *Parameters) initStability(r Rating) float64 {
 	return math.Max(p.W[r-1], 0.1)
 }
 func (p *Parameters) initDifficulty(r Rating) float64 {
-	return constrainDifficulty(p.W[4] - p.W[5]*float64(r-3))
+	return constrainDifficulty(p.W[4] - math.Exp(p.W[5]*float64(r-1)) + 1)
 }
 
 func constrainDifficulty(d float64) float64 {
@@ -164,7 +176,11 @@ func (p *Parameters) nextInterval(s float64) float64 {
 
 func (p *Parameters) nextDifficulty(d float64, r Rating) float64 {
 	nextD := d - p.W[6]*float64(r-3)
-	return constrainDifficulty(p.meanReversion(p.W[4], nextD))
+	return constrainDifficulty(p.meanReversion(p.initDifficulty(Easy), nextD))
+}
+
+func (p *Parameters) shortTermStability(s float64, r Rating) float64 {
+	return s * math.Exp(p.W[17]*(float64(r-3)+p.W[18]))
 }
 
 func (p *Parameters) meanReversion(init float64, current float64) float64 {

@@ -1,13 +1,33 @@
 package fsrs
 
 import (
-	"encoding/json"
-	"fmt"
 	"math"
 	"reflect"
 	"testing"
 	"time"
 )
+
+var testWeights = Weights{
+	0.4197,
+	1.1869,
+	3.0412,
+	15.2441,
+	7.1434,
+	0.6477,
+	1.0007,
+	0.0674,
+	1.6597,
+	0.1712,
+	1.1178,
+	2.0225,
+	0.0904,
+	0.3025,
+	2.1214,
+	0.2498,
+	2.9466,
+	0.4891,
+	0.6468,
+}
 
 func roundFloat(val float64, precision uint) float64 {
 	ratio := math.Pow(10, float64(precision))
@@ -16,15 +36,12 @@ func roundFloat(val float64, precision uint) float64 {
 
 func TestExample(t *testing.T) {
 	p := DefaultParam()
-	p.W = Weights{1.0171, 1.8296, 4.4145, 10.9355, 5.0965, 1.3322, 1.017, 0.0, 1.6243, 0.1369, 1.0321,
-		2.1866, 0.0661, 0.336, 1.7766, 0.1693, 2.9244}
+	p.W = testWeights
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 	var ivlList []uint64
 	var stateList []State
 	schedulingCards := p.Repeat(card, now)
-	schedule, _ := json.MarshalIndent(schedulingCards, "", "    ")
-	fmt.Println(string(schedule))
 
 	var ratings = []Rating{Good, Good, Good, Good, Good, Good, Again, Again, Good, Good, Good, Good, Good}
 	var rating Rating
@@ -38,14 +55,9 @@ func TestExample(t *testing.T) {
 		stateList = append(stateList, revlog.State)
 		now = card.Due
 		schedulingCards = p.Repeat(card, now)
-		schedule, _ = json.MarshalIndent(schedulingCards, "", "    ")
-		fmt.Println(string(schedule))
 	}
 
-	fmt.Println(ivlList)
-	fmt.Println(stateList)
-
-	wantIvlList := []uint64{0, 4, 15, 49, 143, 379, 0, 0, 15, 37, 85, 184, 376}
+	wantIvlList := []uint64{0, 4, 17, 62, 198, 563, 0, 0, 9, 27, 74, 190, 457}
 	if !reflect.DeepEqual(ivlList, wantIvlList) {
 		t.Errorf("excepted:%v, got:%v", wantIvlList, ivlList)
 	}
@@ -57,8 +69,7 @@ func TestExample(t *testing.T) {
 
 func TestMemoState(t *testing.T) {
 	p := DefaultParam()
-	p.W = Weights{1.0171, 1.8296, 4.4145, 10.9355, 5.0965, 1.3322, 1.017, 0.0, 1.6243, 0.1369, 1.0321,
-		2.1866, 0.0661, 0.336, 1.7766, 0.1693, 2.9244}
+	p.W = testWeights
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
@@ -72,9 +83,9 @@ func TestMemoState(t *testing.T) {
 		now = now.Add(time.Duration(ivlList[i]) * 24 * time.Hour)
 		schedulingCards = p.Repeat(card, now)
 	}
-	wantStability := 43.0554
+	wantStability := 71.4554
 	cardStability := roundFloat(schedulingCards[Good].Card.Stability, 4)
-	wantDifficulty := 7.7609
+	wantDifficulty := 5.0976
 	cardDifficulty := roundFloat(schedulingCards[Good].Card.Difficulty, 4)
 
 	if !reflect.DeepEqual(wantStability, cardStability) {
@@ -88,8 +99,6 @@ func TestMemoState(t *testing.T) {
 
 func TestNextInterval(t *testing.T) {
 	p := DefaultParam()
-	p.W = Weights{1.0171, 1.8296, 4.4145, 10.9355, 5.0965, 1.3322, 1.017, 0.0, 1.6243, 0.1369, 1.0321,
-		2.1866, 0.0661, 0.336, 1.7766, 0.1693, 2.9244}
 	var ivlList []float64
 	for i := 1; i <= 10; i++ {
 		p.RequestRetention = float64(i) / 10

@@ -1,3 +1,3 @@
 module github.com/open-spaced-repetition/go-fsrs
 
-go 1.18
+go 1.22
