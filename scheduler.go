@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type AbstractScheduler struct {
+type abstractScheduler struct {
 	last            Card
 	current         Card
 	now             time.Time
@@ -16,8 +16,9 @@ type AbstractScheduler struct {
 	reviewStateFn   func(Rating) SchedulingInfo
 }
 
-func NewAbstractScheduler(card Card, now time.Time, parameters Parameters) *AbstractScheduler {
-	as := &AbstractScheduler{
+// TODO: use *Parameters may be enough
+func newAbstractScheduler(card Card, now time.Time, parameters Parameters) *abstractScheduler {
+	as := &abstractScheduler{
 		parameters: parameters,
 		next:       make(RecordLog),
 	}
@@ -28,7 +29,7 @@ func NewAbstractScheduler(card Card, now time.Time, parameters Parameters) *Abst
 	return as
 }
 
-func (as *AbstractScheduler) init() {
+func (as *abstractScheduler) init() {
 	state := as.current.State
 	lastReview := as.current.LastReview
 	var interval float64 = 0 // card.state === State.New => 0
@@ -40,7 +41,7 @@ func (as *AbstractScheduler) init() {
 	as.current.Reps++
 }
 
-func (as *AbstractScheduler) Preview() RecordLog {
+func (as *abstractScheduler) Preview() RecordLog {
 	return RecordLog{
 		Again: as.Review(Again),
 		Hard:  as.Review(Hard),
@@ -49,7 +50,7 @@ func (as *AbstractScheduler) Preview() RecordLog {
 	}
 }
 
-func (as *AbstractScheduler) Review(grade Rating) SchedulingInfo {
+func (as *abstractScheduler) Review(grade Rating) SchedulingInfo {
 	state := as.last.State
 	var item SchedulingInfo
 	switch state {
@@ -63,7 +64,7 @@ func (as *AbstractScheduler) Review(grade Rating) SchedulingInfo {
 	return item
 }
 
-func (as *AbstractScheduler) buildLog(rating Rating) ReviewLog {
+func (as *abstractScheduler) buildLog(rating Rating) ReviewLog {
 	return ReviewLog{
 		Rating:        rating,
 		State:         as.current.State,
@@ -74,7 +75,7 @@ func (as *AbstractScheduler) buildLog(rating Rating) ReviewLog {
 }
 
 type BasicScheduler struct {
-	AbstractScheduler
+	abstractScheduler
 }
 
 func (bs *BasicScheduler) newState(grade Rating) SchedulingInfo {
@@ -240,7 +241,7 @@ func (bs *BasicScheduler) nextState(nextAgain, nextHard, nextGood, nextEasy *Car
 }
 
 type LongTermScheduler struct {
-	AbstractScheduler
+	abstractScheduler
 }
 
 func (lts *LongTermScheduler) newState(grade Rating) SchedulingInfo {
@@ -361,15 +362,15 @@ func (lts *LongTermScheduler) updateNext(nextAgain, nextHard, nextGood, nextEasy
 	}
 	itemHard := SchedulingInfo{
 		Card:      *nextHard,
-		ReviewLog: lts.AbstractScheduler.buildLog(Hard),
+		ReviewLog: lts.abstractScheduler.buildLog(Hard),
 	}
 	itemGood := SchedulingInfo{
 		Card:      *nextGood,
-		ReviewLog: lts.AbstractScheduler.buildLog(Good),
+		ReviewLog: lts.abstractScheduler.buildLog(Good),
 	}
 	itemEasy := SchedulingInfo{
 		Card:      *nextEasy,
-		ReviewLog: lts.AbstractScheduler.buildLog(Easy),
+		ReviewLog: lts.abstractScheduler.buildLog(Easy),
 	}
 
 	lts.next[Again] = itemAgain
@@ -383,23 +384,10 @@ type Scheduler interface {
 	Review(grade Rating) SchedulingInfo
 }
 
-type FSRS struct {
-	Parameters
-	Scheduler func(card Card, now time.Time, parameters Parameters) Scheduler
-}
-
-func NewFSRS(param Parameters) *FSRS {
-	fsrs := &FSRS{
-		Parameters: param,
-	}
-	fsrs.updateScheduler()
-	return fsrs
-}
-
-func NewBasicScheduler(card Card, now time.Time, parameters Parameters) Scheduler {
-	abstractScheduler := NewAbstractScheduler(card, now, parameters)
+func NewBasicScheduler(card Card, now time.Time, parameters Parameters) *BasicScheduler {
+	abstractScheduler := newAbstractScheduler(card, now, parameters)
 	basicScheduler := &BasicScheduler{
-		AbstractScheduler: *abstractScheduler,
+		abstractScheduler: *abstractScheduler,
 	}
 	basicScheduler.newStateFn = basicScheduler.newState
 	basicScheduler.learningStateFn = basicScheduler.learningState
@@ -407,10 +395,10 @@ func NewBasicScheduler(card Card, now time.Time, parameters Parameters) Schedule
 	return basicScheduler
 }
 
-func NewLongTermScheduler(card Card, now time.Time, parameters Parameters) Scheduler {
-	abstractScheduler := NewAbstractScheduler(card, now, parameters)
+func NewLongTermScheduler(card Card, now time.Time, parameters Parameters) *LongTermScheduler {
+	abstractScheduler := newAbstractScheduler(card, now, parameters)
 	longTermScheduler := &LongTermScheduler{
-		AbstractScheduler: *abstractScheduler,
+		abstractScheduler: *abstractScheduler,
 	}
 	longTermScheduler.newStateFn = longTermScheduler.newState
 	longTermScheduler.learningStateFn = longTermScheduler.LearningState
@@ -418,26 +406,10 @@ func NewLongTermScheduler(card Card, now time.Time, parameters Parameters) Sched
 	return longTermScheduler
 }
 
-func (f *FSRS) updateScheduler() {
-	if f.Parameters.EnableShortTerm {
-		f.Scheduler = func(card Card, now time.Time, parameters Parameters) Scheduler {
-			return NewBasicScheduler(card, now, parameters)
-		}
+func (p *Parameters) scheduler(card Card, now time.Time) Scheduler {
+	if p.EnableShortTerm {
+		return NewBasicScheduler(card, now, *p)
 	} else {
-		f.Scheduler = func(card Card, now time.Time, parameters Parameters) Scheduler {
-			return NewLongTermScheduler(card, now, parameters)
-		}
+		return NewLongTermScheduler(card, now, *p)
 	}
-}
-
-func (f *FSRS) Repeat(card Card, now time.Time) RecordLog {
-	scheduler := f.Scheduler(card, now, f.Parameters)
-	recordLog := scheduler.Preview()
-	return recordLog
-}
-
-func (f *FSRS) Next(card Card, now time.Time, grade Rating) SchedulingInfo {
-	scheduler := f.Scheduler(card, now, f.Parameters)
-	recordLogItem := scheduler.Review(grade)
-	return recordLogItem
 }
