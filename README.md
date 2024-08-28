@@ -1,6 +1,6 @@
 # go-fsrs
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/open-spaced-repetition/go-fsrs.svg)](https://pkg.go.dev/github.com/open-spaced-repetition/go-fsrs) [![Go Report Card](https://goreportcard.com/badge/github.com/open-spaced-repetition/go-fsrs)](https://goreportcard.com/report/github.com/open-spaced-repetition/go-fsrs)
+[![Go Reference](https://pkg.go.dev/badge/github.com/open-spaced-repetition/go-fsrs/v2.svg)](https://pkg.go.dev/github.com/open-spaced-repetition/go-fsrs/v2) [![Go Report Card](https://goreportcard.com/badge/github.com/open-spaced-repetition/go-fsrs/v2)](https://goreportcard.com/report/github.com/open-spaced-repetition/go-fsrs/v2)
 ![Go version](https://img.shields.io/github/go-mod/go-version/open-spaced-repetition/go-fsrs)
 
 Go module implements [Free Spaced Repetition Scheduler algorithm](https://github.com/open-spaced-repetition/free-spaced-repetition-scheduler)
@@ -8,12 +8,12 @@ Go module implements [Free Spaced Repetition Scheduler algorithm](https://github
 ## Install
 
 ```bash
-go get -u github.com/open-spaced-repetition/go-fsrs@latest
+go get -u github.com/open-spaced-repetition/go-fsrs/v2@latest
 ```
 
 ## Usage
 
-Please see [GoDoc](https://pkg.go.dev/github.com/open-spaced-repetition/go-fsrs)
+Please see [GoDoc](https://pkg.go.dev/github.com/open-spaced-repetition/go-fsrs/v2)
 and [Wiki](https://github.com/open-spaced-repetition/go-fsrs/wiki) for documents.
 
 ## Contributing
