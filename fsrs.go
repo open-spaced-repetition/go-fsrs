@@ -7,10 +7,9 @@ type FSRS struct {
 }
 
 func NewFSRS(param Parameters) *FSRS {
-	fsrs := &FSRS{
+	return &FSRS{
 		Parameters: param,
 	}
-	return fsrs
 }
 
 func (f *FSRS) Repeat(card Card, now time.Time) RecordLog {
