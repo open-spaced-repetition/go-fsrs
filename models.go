@@ -57,6 +57,8 @@ type SchedulingInfo struct {
 	ReviewLog ReviewLog
 }
 
+type RecordLog map[Rating]SchedulingInfo
+
 type Rating int8
 
 const (
