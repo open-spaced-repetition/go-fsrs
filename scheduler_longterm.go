@@ -33,7 +33,7 @@ func (lts longTermScheduler) newState(grade Rating) SchedulingInfo {
 
 	lts.initDs(&nextAgain, &nextHard, &nextGood, &nextEasy)
 
-	lts.nextInterval(&nextAgain, &nextHard, &nextGood, &nextEasy)
+	lts.nextInterval(&nextAgain, &nextHard, &nextGood, &nextEasy, 0)
 	lts.nextState(&nextAgain, &nextHard, &nextGood, &nextEasy)
 	lts.updateNext(&nextAgain, &nextHard, &nextGood, &nextEasy)
 
@@ -75,7 +75,7 @@ func (lts longTermScheduler) reviewState(grade Rating) SchedulingInfo {
 	nextEasy := lts.current
 
 	lts.nextDs(&nextAgain, &nextHard, &nextGood, &nextEasy, difficulty, stability, retrievability)
-	lts.nextInterval(&nextAgain, &nextHard, &nextGood, &nextEasy)
+	lts.nextInterval(&nextAgain, &nextHard, &nextGood, &nextEasy, interval)
 	lts.nextState(&nextAgain, &nextHard, &nextGood, &nextEasy)
 	nextAgain.Lapses++
 
@@ -97,11 +97,11 @@ func (lts longTermScheduler) nextDs(nextAgain, nextHard, nextGood, nextEasy *Car
 	nextEasy.Stability = lts.parameters.nextRecallStability(difficulty, stability, retrievability, Easy)
 }
 
-func (lts longTermScheduler) nextInterval(nextAgain, nextHard, nextGood, nextEasy *Card) {
-	againInterval := lts.parameters.nextInterval(nextAgain.Stability)
-	hardInterval := lts.parameters.nextInterval(nextHard.Stability)
-	goodInterval := lts.parameters.nextInterval(nextGood.Stability)
-	easyInterval := lts.parameters.nextInterval(nextEasy.Stability)
+func (lts longTermScheduler) nextInterval(nextAgain, nextHard, nextGood, nextEasy *Card, elapsedDays float64) {
+	againInterval := lts.parameters.nextInterval(nextAgain.Stability, elapsedDays)
+	hardInterval := lts.parameters.nextInterval(nextHard.Stability, elapsedDays)
+	goodInterval := lts.parameters.nextInterval(nextGood.Stability, elapsedDays)
+	easyInterval := lts.parameters.nextInterval(nextEasy.Stability, elapsedDays)
 
 	againInterval = math.Min(againInterval, hardInterval)
 	hardInterval = math.Max(hardInterval, againInterval+1)
