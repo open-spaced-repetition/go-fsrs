@@ -1,6 +1,7 @@
 package fsrs
 
 import (
+	"fmt"
 	"math"
 	"time"
 )
@@ -45,6 +46,13 @@ func (s *Scheduler) Review(grade Rating) SchedulingInfo {
 	return item
 }
 
+func (s *Scheduler) initSeed() {
+	time := s.now
+	reps := s.current.Reps
+	mul := s.current.Difficulty * s.current.Stability
+	s.parameters.seed = fmt.Sprintf("%d_%d_%f", time.Unix(), reps, mul)
+}
+
 func (s *Scheduler) buildLog(rating Rating) ReviewLog {
 	return ReviewLog{
 		Rating:        rating,
@@ -71,6 +79,7 @@ func (p *Parameters) newScheduler(card Card, now time.Time, newImpl func(s *Sche
 	s.current.LastReview = s.now
 	s.current.ElapsedDays = uint64(interval)
 	s.current.Reps++
+	s.initSeed()
 
 	s.impl = newImpl(s)
 

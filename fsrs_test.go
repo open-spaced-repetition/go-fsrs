@@ -103,7 +103,7 @@ func TestNextInterval(t *testing.T) {
 	var ivlList []float64
 	for i := 1; i <= 10; i++ {
 		fsrs.RequestRetention = float64(i) / 10
-		ivlList = append(ivlList, fsrs.nextInterval(1))
+		ivlList = append(ivlList, fsrs.nextInterval(1, 0))
 	}
 	wantIvlList := []float64{422, 102, 43, 22, 13, 8, 4, 2, 1, 1}
 	if !reflect.DeepEqual(ivlList, wantIvlList) {

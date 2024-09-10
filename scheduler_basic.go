@@ -43,6 +43,7 @@ func (bs basicScheduler) newState(grade Rating) SchedulingInfo {
 	case Easy:
 		easyInterval := bs.parameters.nextInterval(
 			next.Stability,
+			float64(next.ElapsedDays),
 		)
 		next.ScheduledDays = uint64(easyInterval)
 		next.Due = bs.now.Add(time.Duration(easyInterval) * 24 * time.Hour)
@@ -64,6 +65,7 @@ func (bs basicScheduler) learningState(grade Rating) SchedulingInfo {
 	}
 
 	next := bs.current
+	interval := float64(bs.current.ElapsedDays)
 	next.Difficulty = bs.parameters.nextDifficulty(bs.last.Difficulty, grade)
 	next.Stability = bs.parameters.shortTermStability(bs.last.Stability, grade)
 
@@ -77,15 +79,15 @@ func (bs basicScheduler) learningState(grade Rating) SchedulingInfo {
 		next.Due = bs.now.Add(10 * time.Minute)
 		next.State = bs.last.State
 	case Good:
-		goodInterval := bs.parameters.nextInterval(next.Stability)
+		goodInterval := bs.parameters.nextInterval(next.Stability, interval)
 		next.ScheduledDays = uint64(goodInterval)
 		next.Due = bs.now.Add(time.Duration(goodInterval) * 24 * time.Hour)
 		next.State = Review
 	case Easy:
 		goodStability := bs.parameters.shortTermStability(bs.last.Stability, Good)
-		goodInterval := bs.parameters.nextInterval(goodStability)
+		goodInterval := bs.parameters.nextInterval(goodStability, interval)
 		easyInterval := math.Max(
-			bs.parameters.nextInterval(next.Stability),
+			bs.parameters.nextInterval(next.Stability, interval),
 			float64(goodInterval)+1,
 		)
 		next.ScheduledDays = uint64(easyInterval)
@@ -118,7 +120,7 @@ func (bs basicScheduler) reviewState(grade Rating) SchedulingInfo {
 	nextEasy := bs.current
 
 	bs.nextDs(&nextAgain, &nextHard, &nextGood, &nextEasy, difficulty, stability, retrievability)
-	bs.nextInterval(&nextAgain, &nextHard, &nextGood, &nextEasy)
+	bs.nextInterval(&nextAgain, &nextHard, &nextGood, &nextEasy, interval)
 	bs.nextState(&nextAgain, &nextHard, &nextGood, &nextEasy)
 	nextAgain.Lapses++
 
@@ -149,13 +151,13 @@ func (bs basicScheduler) nextDs(nextAgain, nextHard, nextGood, nextEasy *Card, d
 	nextEasy.Stability = bs.parameters.nextRecallStability(difficulty, stability, retrievability, Easy)
 }
 
-func (bs basicScheduler) nextInterval(nextAgain, nextHard, nextGood, nextEasy *Card) {
-	hardInterval := bs.parameters.nextInterval(nextHard.Stability)
-	goodInterval := bs.parameters.nextInterval(nextGood.Stability)
+func (bs basicScheduler) nextInterval(nextAgain, nextHard, nextGood, nextEasy *Card, elapsedDays float64) {
+	hardInterval := bs.parameters.nextInterval(nextHard.Stability, elapsedDays)
+	goodInterval := bs.parameters.nextInterval(nextGood.Stability, elapsedDays)
 	hardInterval = math.Min(hardInterval, goodInterval)
 	goodInterval = math.Max(goodInterval, hardInterval+1)
 	easyInterval := math.Max(
-		bs.parameters.nextInterval(nextEasy.Stability),
+		bs.parameters.nextInterval(nextEasy.Stability, elapsedDays),
 		goodInterval+1,
 	)
 
