@@ -148,3 +148,20 @@ func TestLongTermScheduler(t *testing.T) {
 		t.Errorf("excepted:%v, got:%v", wantDHistory, dHistory)
 	}
 }
+
+func TestGetRetrievability(t *testing.T) {
+	retrievabilityList := []float64{}
+	fsrs := NewFSRS(DefaultParam())
+	card := NewCard()
+	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
+	retrievabilityList = append(retrievabilityList, roundFloat(fsrs.GetRetrievability(card, now), 4))
+	for i := 0; i < 3; i++ {
+		card = fsrs.Next(card, now, Good).Card
+		now = card.Due
+		retrievabilityList = append(retrievabilityList, roundFloat(fsrs.GetRetrievability(card, now), 4))
+	}
+	wantRetrievabilityList := []float64{0, 0.9997, 0.9036, 0.9017}
+	if !reflect.DeepEqual(retrievabilityList, wantRetrievabilityList) {
+		t.Errorf("excepted:%v, got:%v", wantRetrievabilityList, retrievabilityList)
+	}
+}
