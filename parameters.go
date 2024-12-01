@@ -57,13 +57,18 @@ func constrainDifficulty(d float64) float64 {
 	return math.Min(math.Max(d, 1), 10)
 }
 
+func linearDamping(deltaD float64, oldD float64) float64 {
+	return (10.0 - oldD) * deltaD / 9.0
+}
+
 func (p *Parameters) nextInterval(s, elapsedDays float64) float64 {
 	newInterval := s / p.Factor * (math.Pow(p.RequestRetention, 1/p.Decay) - 1)
 	return p.ApplyFuzz(math.Max(math.Min(math.Round(newInterval), p.MaximumInterval), 1), elapsedDays, p.EnableFuzz)
 }
 
 func (p *Parameters) nextDifficulty(d float64, r Rating) float64 {
-	nextD := d - p.W[6]*float64(r-3)
+	deltaD := -p.W[6] * float64(r-3)
+	nextD := d + linearDamping(deltaD, d)
 	return constrainDifficulty(p.meanReversion(p.initDifficulty(Easy), nextD))
 }
 
