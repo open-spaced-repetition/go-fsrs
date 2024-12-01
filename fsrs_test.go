@@ -7,28 +7,6 @@ import (
 	"time"
 )
 
-var testWeights = Weights{
-	0.4197,
-	1.1869,
-	3.0412,
-	15.2441,
-	7.1434,
-	0.6477,
-	1.0007,
-	0.0674,
-	1.6597,
-	0.1712,
-	1.1178,
-	2.0225,
-	0.0904,
-	0.3025,
-	2.1214,
-	0.2498,
-	2.9466,
-	0.4891,
-	0.6468,
-}
-
 func roundFloat(val float64, precision uint) float64 {
 	ratio := math.Pow(10, float64(precision))
 	return math.Round(val*ratio) / ratio
@@ -36,7 +14,6 @@ func roundFloat(val float64, precision uint) float64 {
 
 func TestBasicSchedulerExample(t *testing.T) {
 	p := DefaultParam()
-	p.W = testWeights
 	fsrs := NewFSRS(p)
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
@@ -58,7 +35,7 @@ func TestBasicSchedulerExample(t *testing.T) {
 		schedulingCards = fsrs.Repeat(card, now)
 	}
 
-	wantIvlList := []uint64{0, 4, 17, 62, 198, 563, 0, 0, 9, 27, 74, 190, 457}
+	wantIvlList := []uint64{0, 4, 14, 44, 125, 328, 0, 0, 7, 16, 34, 71, 142}
 	if !reflect.DeepEqual(ivlList, wantIvlList) {
 		t.Errorf("excepted:%v, got:%v", wantIvlList, ivlList)
 	}
@@ -70,7 +47,6 @@ func TestBasicSchedulerExample(t *testing.T) {
 
 func TestBasicSchedulerMemoState(t *testing.T) {
 	p := DefaultParam()
-	p.W = testWeights
 	fsrs := NewFSRS(p)
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
@@ -84,9 +60,9 @@ func TestBasicSchedulerMemoState(t *testing.T) {
 		now = now.Add(time.Duration(ivlList[i]) * 24 * time.Hour)
 		schedulingCards = fsrs.Repeat(card, now)
 	}
-	wantStability := 71.4554
+	wantStability := 48.4848
 	cardStability := roundFloat(schedulingCards[Good].Card.Stability, 4)
-	wantDifficulty := 5.0976
+	wantDifficulty := 7.0866
 	cardDifficulty := roundFloat(schedulingCards[Good].Card.Difficulty, 4)
 	if !reflect.DeepEqual(wantStability, cardStability) {
 		t.Errorf("excepted:%v, got:%v", wantStability, cardStability)
@@ -113,7 +89,6 @@ func TestNextInterval(t *testing.T) {
 
 func TestLongTermScheduler(t *testing.T) {
 	p := DefaultParam()
-	p.W = testWeights
 	p.EnableShortTerm = false
 	fsrs := NewFSRS(p)
 	card := NewCard()
@@ -135,15 +110,15 @@ func TestLongTermScheduler(t *testing.T) {
 		dHistory = append(dHistory, roundFloat(card.Difficulty, 4))
 		now = card.Due
 	}
-	wantIvlHistory := []uint64{3, 13, 48, 155, 445, 1158, 17, 3, 9, 27, 74, 190, 457}
+	wantIvlHistory := []uint64{3, 11, 35, 101, 269, 669, 12, 2, 5, 12, 26, 55, 112}
 	if !reflect.DeepEqual(ivlHistory, wantIvlHistory) {
 		t.Errorf("excepted:%v, got:%v", wantIvlHistory, ivlHistory)
 	}
-	wantSHistory := []float64{3.0412, 13.0913, 48.1585, 154.9373, 445.0556, 1158.0778, 16.6306, 2.9888, 9.4633, 26.9474, 73.9723, 189.7037, 457.4379}
+	wantSHistory := []float64{3.173, 10.7389, 34.5776, 100.7483, 269.2838, 669.3093, 11.8987, 2.236, 5.2001, 11.8993, 26.4917, 55.4949, 111.9726}
 	if !reflect.DeepEqual(sHisotry, wantSHistory) {
 		t.Errorf("excepted:%v, got:%v", wantSHistory, sHisotry)
 	}
-	wantDHistory := []float64{4.4909, 4.2666, 4.0575, 3.8624, 3.6804, 3.5108, 5.219, 6.8122, 6.4314, 6.0763, 5.7452, 5.4363, 5.1483}
+	wantDHistory := []float64{5.2824, 5.273, 5.2635, 5.2542, 5.2448, 5.2355, 6.7654, 7.794, 7.773, 7.7521, 7.7312, 7.7105, 7.6899}
 	if !reflect.DeepEqual(dHistory, wantDHistory) {
 		t.Errorf("excepted:%v, got:%v", wantDHistory, dHistory)
 	}
@@ -160,7 +135,7 @@ func TestGetRetrievability(t *testing.T) {
 		now = card.Due
 		retrievabilityList = append(retrievabilityList, roundFloat(fsrs.GetRetrievability(card, now), 4))
 	}
-	wantRetrievabilityList := []float64{0, 0.9997, 0.9036, 0.9017}
+	wantRetrievabilityList := []float64{0, 0.9997, 0.9091, 0.9013}
 	if !reflect.DeepEqual(retrievabilityList, wantRetrievabilityList) {
 		t.Errorf("excepted:%v, got:%v", wantRetrievabilityList, retrievabilityList)
 	}
