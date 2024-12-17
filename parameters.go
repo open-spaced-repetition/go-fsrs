@@ -101,11 +101,10 @@ func (p *Parameters) nextRecallStability(d float64, s float64, r float64, rating
 }
 
 func (p *Parameters) nextForgetStability(d float64, s float64, r float64) float64 {
-	newSMin := s / math.Exp(p.W[17]*p.W[18])
-	return math.Min(newSMin, p.W[11]*
-		math.Pow(d, -p.W[12])*
-		(math.Pow(s+1, p.W[13])-1)*
-		math.Exp((1-r)*p.W[14]))
+	return p.W[11] *
+		math.Pow(d, -p.W[12]) *
+		(math.Pow(s+1, p.W[13]) - 1) *
+		math.Exp((1-r)*p.W[14])
 }
 
 type FuzzRange struct {
