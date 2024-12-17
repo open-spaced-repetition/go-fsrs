@@ -85,7 +85,7 @@ func (lts longTermScheduler) reviewState(grade Rating) SchedulingInfo {
 
 func (lts longTermScheduler) nextDs(nextAgain, nextHard, nextGood, nextEasy *Card, difficulty, stability, retrievability float64) {
 	nextAgain.Difficulty = lts.parameters.nextDifficulty(difficulty, Again)
-	nextAgain.Stability = lts.parameters.nextForgetStability(difficulty, stability, retrievability)
+	nextAgain.Stability = math.Min(stability, lts.parameters.nextForgetStability(difficulty, stability, retrievability))
 
 	nextHard.Difficulty = lts.parameters.nextDifficulty(difficulty, Hard)
 	nextHard.Stability = lts.parameters.nextRecallStability(difficulty, stability, retrievability, Hard)

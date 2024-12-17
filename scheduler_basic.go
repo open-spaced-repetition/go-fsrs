@@ -139,7 +139,8 @@ func (bs basicScheduler) reviewState(grade Rating) SchedulingInfo {
 
 func (bs basicScheduler) nextDs(nextAgain, nextHard, nextGood, nextEasy *Card, difficulty, stability, retrievability float64) {
 	nextAgain.Difficulty = bs.parameters.nextDifficulty(difficulty, Again)
-	nextAgain.Stability = bs.parameters.nextForgetStability(difficulty, stability, retrievability)
+	nextSMin := stability / math.Exp(bs.parameters.W[17]*bs.parameters.W[18])
+	nextAgain.Stability = math.Min(nextSMin, bs.parameters.nextForgetStability(difficulty, stability, retrievability))
 
 	nextHard.Difficulty = bs.parameters.nextDifficulty(difficulty, Hard)
 	nextHard.Stability = bs.parameters.nextRecallStability(difficulty, stability, retrievability, Hard)
