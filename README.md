@@ -23,3 +23,7 @@ not to introduce any breaking changes and do not any functionality excess the sc
 
 For algorithm problems or discussions, please
 go [open-spaced-repetition/free-spaced-repetition-scheduler](https://github.com/open-spaced-repetition/free-spaced-repetition-scheduler).
+
+## Online development
+
+<https://idx.google.com/import>
