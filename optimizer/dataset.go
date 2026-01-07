@@ -142,10 +142,11 @@ func RecencyWeightedItems(items []FSRSItem) []WeightedFSRSItem {
 	n := float64(len(items))
 
 	for i, idxItem := range indexed {
-		// Linear recency weight: newer items (fewer reviews) get higher weight
-		// Weight ranges from 0.5 to 1.5
+		// Cubic recency weight matching fsrs-rs implementation
+		// Weight ranges from 0.25 to 1.0, with cubic curve giving
+		// much higher weight to recent items
 		position := float64(i) / n
-		weight := 0.5 + position
+		weight := 0.25 + 0.75*math.Pow(position, 3)
 
 		result[idxItem.index] = WeightedFSRSItem{
 			Item:   items[idxItem.index],
