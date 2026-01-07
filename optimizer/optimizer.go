@@ -70,7 +70,7 @@ func ComputeParameters(input ComputeParametersInput) (*ComputeParametersResult, 
 
 	// 7. Prepare training configuration
 	config := DefaultTrainingConfig()
-	config.FreezeInitialStability = !input.EnableShortTerm
+	config.FreezeInitialStability = input.FreezeInitialStability
 	config.FreezeShortTerm = !input.EnableShortTerm
 	config.NumRelearningSteps = input.NumRelearningSteps
 
@@ -184,7 +184,7 @@ func Benchmark(input ComputeParametersInput) ([]float64, error) {
 
 	// Configure training
 	config := DefaultTrainingConfig()
-	config.FreezeInitialStability = !input.EnableShortTerm
+	config.FreezeInitialStability = input.FreezeInitialStability
 	config.FreezeShortTerm = !input.EnableShortTerm
 
 	// Prepare weighted items

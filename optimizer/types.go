@@ -164,10 +164,11 @@ func DefaultTrainingConfig() TrainingConfig {
 
 // ComputeParametersInput holds input for ComputeParameters
 type ComputeParametersInput struct {
-	TrainSet           []FSRSItem
-	EnableShortTerm    bool
-	NumRelearningSteps int
-	ProgressFunc       func(current, total int) // Optional progress callback
+	TrainSet               []FSRSItem
+	EnableShortTerm        bool
+	FreezeInitialStability bool // Whether to freeze S0 parameters during training (independent of EnableShortTerm)
+	NumRelearningSteps     int
+	ProgressFunc           func(current, total int) // Optional progress callback
 }
 
 // ProgressState represents training progress

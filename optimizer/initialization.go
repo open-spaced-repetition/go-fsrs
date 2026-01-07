@@ -98,8 +98,12 @@ func searchParameters(groupedData map[uint32][]AverageRecall, avgRecall float64)
 
 			if loss1 < loss2 {
 				high = mid2
-			} else {
+			} else if loss1 > loss2 {
 				low = mid1
+			} else {
+				// When losses are equal, narrow from both sides for faster convergence
+				low = mid1
+				high = mid2
 			}
 
 			optimalS = (high + low) / 2.0

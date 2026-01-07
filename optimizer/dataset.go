@@ -131,19 +131,24 @@ func RecencyWeightedItems(items []FSRSItem) []WeightedFSRSItem {
 		indexed[i] = indexedItem{index: i, count: len(item.Reviews)}
 	}
 
-	// Calculate recency weight based on position
-	// Items are weighted by their relative position in the dataset
+	// Sort by count ascending (fewer reviews = newer cards)
+	sort.Slice(indexed, func(i, j int) bool {
+		return indexed[i].count < indexed[j].count
+	})
+
+	// Calculate recency weight based on sorted position
+	// Items are weighted by their relative position after sorting
 	result := make([]WeightedFSRSItem, len(items))
 	n := float64(len(items))
 
-	for i, item := range items {
-		// Linear recency weight: newer items get higher weight
+	for i, idxItem := range indexed {
+		// Linear recency weight: newer items (fewer reviews) get higher weight
 		// Weight ranges from 0.5 to 1.5
 		position := float64(i) / n
 		weight := 0.5 + position
 
-		result[i] = WeightedFSRSItem{
-			Item:   item,
+		result[idxItem.index] = WeightedFSRSItem{
+			Item:   items[idxItem.index],
 			Weight: weight,
 		}
 	}
