@@ -26,7 +26,7 @@ func PrepareTrainingData(items []FSRSItem) (initItems, trainItems []FSRSItem) {
 	return initItems, trainItems
 }
 
-// filterOutlier removes statistical outliers following fsrs-rs approach:
+// filterOutlier removes statistical outliers:
 // - Groups items by first rating and delta_t
 // - Removes ~5% from each group (minimum threshold)
 // - Retains subgroups with ≥6 items
@@ -60,7 +60,7 @@ func filterOutlier(initItems, trainItems []FSRSItem) ([]FSRSItem, []FSRSItem) {
 			continue
 		}
 
-		// Apply time interval filter (fsrs-rs: ≤100 days, rating 4: ≤365 days)
+		// Apply time interval filter
 		maxDeltaT := uint32(100)
 		if firstRating == 4 {
 			maxDeltaT = 365
@@ -189,9 +189,8 @@ func RecencyWeightedItems(items []FSRSItem) []WeightedFSRSItem {
 	n := float64(len(items))
 
 	for i, idxItem := range indexed {
-		// Cubic recency weight matching fsrs-rs implementation
-		// Weight ranges from 0.25 to 1.0, with cubic curve giving
-		// much higher weight to recent items
+		// Cubic recency weight: 0.25 to 1.0
+		// Cubic curve gives much higher weight to recent items
 		position := float64(i) / n
 		weight := 0.25 + 0.75*math.Pow(position, 3)
 

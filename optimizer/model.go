@@ -238,6 +238,7 @@ func (m *Model) PredictRetrievabilityBatch(items []WeightedFSRSItem) []float64 {
 }
 
 // ClipParameters clips all parameters to valid ranges
+// Bounds follow the fsrs-rs reference implementation
 func ClipParameters(w []float64, numRelearningSteps int, enableShortTerm bool) []float64 {
 	result := make([]float64, len(w))
 	copy(result, w)
@@ -267,25 +268,25 @@ func ClipParameters(w []float64, numRelearningSteps int, enableShortTerm bool) [
 	// W[6]: difficulty change
 	result[6] = Clamp(result[6], 0.001, 4.0)
 
-	// W[7]: mean reversion (fsrs-rs: 0.001-0.75)
+	// W[7]: mean reversion
 	result[7] = Clamp(result[7], 0.001, 0.75)
 
-	// W[8]: stability growth base (fsrs-rs: 0.0-4.5)
+	// W[8]: stability growth base
 	result[8] = Clamp(result[8], 0.0, 4.5)
 
-	// W[9]: stability growth exponent (fsrs-rs: 0.0-0.8)
+	// W[9]: stability growth exponent
 	result[9] = Clamp(result[9], 0.0, 0.8)
 
-	// W[10]: retrievability factor (fsrs-rs: 0.001-3.5)
+	// W[10]: retrievability factor
 	result[10] = Clamp(result[10], 0.001, 3.5)
 
-	// W[11]: forget stability base (fsrs-rs: 0.001-5.0)
+	// W[11]: forget stability base
 	result[11] = Clamp(result[11], 0.001, 5.0)
 
-	// W[12]: forget difficulty factor (fsrs-rs: 0.001-0.25)
+	// W[12]: forget difficulty factor
 	result[12] = Clamp(result[12], 0.001, 0.25)
 
-	// W[13]: forget stability exponent (fsrs-rs: 0.001-0.9)
+	// W[13]: forget stability exponent
 	result[13] = Clamp(result[13], 0.001, 0.9)
 
 	// W[14]: forget retrievability factor
@@ -308,7 +309,7 @@ func ClipParameters(w []float64, numRelearningSteps int, enableShortTerm bool) [
 		result[19] = 0
 	}
 
-	// W[20]: decay (fsrs-rs: 0.1-0.8)
+	// W[20]: decay
 	result[20] = Clamp(result[20], 0.1, 0.8)
 
 	return result
