@@ -26,17 +26,45 @@ func PrepareTrainingData(items []FSRSItem) (initItems, trainItems []FSRSItem) {
 	return initItems, trainItems
 }
 
-// filterOutlier removes statistical outliers:
+// filterOutlier removes statistical outliers following fsrs-rs approach:
 // - Groups items by first rating and delta_t
-// - Removes ~5% from each group (minimum threshold)
-// - Retains subgroups with ≥6 items
-// - Filters by time interval (≤100 days, except rating 4: ≤365 days)
+// - Sorts groups by size (ascending), then delta_t (descending)
+// - Removes up to 5% of total items, prioritizing smaller/older groups
+// - Tracks removed (rating, delta_t) pairs and applies to trainset
+// - Retains subgroups with ≥6 items within time limits
 // For small datasets (<50 items total), filtering is skipped to preserve data.
 func filterOutlier(initItems, trainItems []FSRSItem) ([]FSRSItem, []FSRSItem) {
-	// Skip filtering for small datasets
-	totalItems := len(initItems) + len(trainItems)
-	if totalItems < 50 {
-		return initItems, trainItems
+	// Combine all items for R-matrix calculation
+	allItems := append(initItems, trainItems...)
+
+	// Build R-matrix: map of (deltaTBin, lengthBin, lapseBin) -> (sum, count)
+	type rMatrixKey struct {
+		deltaTBin, lengthBin, lapseBin uint32
+	}
+	type rMatrixValue struct {
+		sum   float64
+		count int
+	}
+	rMatrix := make(map[rMatrixKey]*rMatrixValue)
+
+	for _, item := range allItems {
+		current := item.Current()
+		if current == nil {
+			continue
+		}
+
+		key := rMatrixKey{}
+		key.deltaTBin, key.lengthBin, key.lapseBin = item.RMatrixIndex()
+
+		if _, ok := rMatrix[key]; !ok {
+			rMatrix[key] = &rMatrixValue{}
+		}
+
+		// Label: 1 if recalled (rating > 1), 0 otherwise
+		if current.Rating > 1 {
+			rMatrix[key].sum += 1
+		}
+		rMatrix[key].count++
 	}
 
 	// Group key: first rating + delta_t of first long-term review
@@ -45,11 +73,9 @@ func filterOutlier(initItems, trainItems []FSRSItem) ([]FSRSItem, []FSRSItem) {
 		deltaT      uint32
 	}
 
-	// Build groups for all items
-	initGroups := make(map[groupKey][]int)  // indices into initItems
-	trainGroups := make(map[groupKey][]int) // indices into trainItems
+	// Build groups for init items
+	initGroups := make(map[groupKey][]int) // indices into initItems
 
-	// Group init items
 	for i, item := range initItems {
 		if len(item.Reviews) < 1 {
 			continue
@@ -60,21 +86,80 @@ func filterOutlier(initItems, trainItems []FSRSItem) ([]FSRSItem, []FSRSItem) {
 			continue
 		}
 
-		// Apply time interval filter
-		maxDeltaT := uint32(100)
-		if firstRating == 4 {
-			maxDeltaT = 365
-		}
-		if firstLT.DeltaT > maxDeltaT {
-			continue
-		}
-
 		key := groupKey{firstRating: firstRating, deltaT: firstLT.DeltaT}
 		initGroups[key] = append(initGroups[key], i)
 	}
 
-	// Group train items
-	for i, item := range trainItems {
+	// Convert to list for sorting
+	type subGroup struct {
+		key     groupKey
+		indices []int
+	}
+	subGroupList := make([]subGroup, 0, len(initGroups))
+	for key, indices := range initGroups {
+		subGroupList = append(subGroupList, subGroup{key: key, indices: indices})
+	}
+
+	// Sort: size ascending, then delta_t descending
+	sort.Slice(subGroupList, func(i, j int) bool {
+		if len(subGroupList[i].indices) != len(subGroupList[j].indices) {
+			return len(subGroupList[i].indices) < len(subGroupList[j].indices) // size ↑
+		}
+		return subGroupList[i].key.deltaT > subGroupList[j].key.deltaT // delta_t ↓
+	})
+
+	// Track removed pairs and filter init items
+	removedPairs := make(map[uint32]map[uint32]bool) // rating -> delta_t -> removed
+	keepIndices := make(map[int]bool)
+	totalInit := len(initItems)
+	targetRemoval := max(20, totalInit/20) // 5% or minimum 20
+	beenRemoved := 0
+
+	// Iterate in reverse (larger/more recent groups first)
+	for i := len(subGroupList) - 1; i >= 0; i-- {
+		key := subGroupList[i].key
+		indices := subGroupList[i].indices
+
+		// Determine max delta_t for this rating
+		maxDeltaT := uint32(100)
+		if key.firstRating == 4 {
+			maxDeltaT = 365
+		}
+
+		if beenRemoved+len(indices) >= targetRemoval {
+			// Keep if ≥6 items AND within delta_t limit
+			if len(indices) >= 6 && key.deltaT <= maxDeltaT {
+				for _, idx := range indices {
+					keepIndices[idx] = true
+				}
+			} else {
+				// Mark as removed
+				if removedPairs[key.firstRating] == nil {
+					removedPairs[key.firstRating] = make(map[uint32]bool)
+				}
+				removedPairs[key.firstRating][key.deltaT] = true
+			}
+		} else {
+			// Remove entire group
+			beenRemoved += len(indices)
+			if removedPairs[key.firstRating] == nil {
+				removedPairs[key.firstRating] = make(map[uint32]bool)
+			}
+			removedPairs[key.firstRating][key.deltaT] = true
+		}
+	}
+
+	// Build filtered init items
+	filteredInit := make([]FSRSItem, 0, len(keepIndices))
+	for i, item := range initItems {
+		if keepIndices[i] {
+			filteredInit = append(filteredInit, item)
+		}
+	}
+
+	// Filter trainset based on removed pairs
+	filteredTrain := make([]FSRSItem, 0, len(trainItems))
+	for _, item := range trainItems {
 		if len(item.Reviews) < 1 {
 			continue
 		}
@@ -84,57 +169,22 @@ func filterOutlier(initItems, trainItems []FSRSItem) ([]FSRSItem, []FSRSItem) {
 			continue
 		}
 
-		// Apply time interval filter
-		maxDeltaT := uint32(100)
-		if firstRating == 4 {
-			maxDeltaT = 365
-		}
-		if firstLT.DeltaT > maxDeltaT {
+		// Skip if this (rating, delta_t) pair was removed
+		if removedPairs[firstRating] != nil && removedPairs[firstRating][firstLT.DeltaT] {
 			continue
 		}
 
-		key := groupKey{firstRating: firstRating, deltaT: firstLT.DeltaT}
-		trainGroups[key] = append(trainGroups[key], i)
+		filteredTrain = append(filteredTrain, item)
 	}
-
-	// Filter function: keep items from groups with ≥6 items, remove ~5% outliers
-	filterByGroup := func(items []FSRSItem, groups map[groupKey][]int) []FSRSItem {
-		keepIndices := make(map[int]bool)
-
-		for _, indices := range groups {
-			// Skip groups with fewer than 6 items
-			if len(indices) < 6 {
-				continue
-			}
-
-			// Calculate how many to remove (~5%, minimum 1 if group is large enough)
-			removeCount := len(indices) * 5 / 100
-			if len(indices) >= 20 && removeCount < 1 {
-				removeCount = 1
-			}
-
-			// Keep items except the outliers (remove from both ends)
-			// For simplicity, we keep all items from valid groups
-			// The main filtering is done by group size and time interval
-			keepCount := len(indices) - removeCount
-			for j := 0; j < keepCount && j < len(indices); j++ {
-				keepIndices[indices[j]] = true
-			}
-		}
-
-		result := make([]FSRSItem, 0, len(keepIndices))
-		for i, item := range items {
-			if keepIndices[i] {
-				result = append(result, item)
-			}
-		}
-		return result
-	}
-
-	filteredInit := filterByGroup(initItems, initGroups)
-	filteredTrain := filterByGroup(trainItems, trainGroups)
 
 	return filteredInit, filteredTrain
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // CalculateAverageRecall computes the average recall rate across all items
@@ -189,10 +239,10 @@ func RecencyWeightedItems(items []FSRSItem) []WeightedFSRSItem {
 	n := float64(len(items))
 
 	for i, idxItem := range indexed {
-		// Cubic recency weight: 0.25 to 1.0
-		// Cubic curve gives much higher weight to recent items
+		// Linear recency weight: newer items (fewer reviews) get higher weight
+		// Weight ranges from 0.5 to 1.5
 		position := float64(i) / n
-		weight := 0.25 + 0.75*math.Pow(position, 3)
+		weight := 0.5 + position
 
 		result[idxItem.index] = WeightedFSRSItem{
 			Item:   items[idxItem.index],
