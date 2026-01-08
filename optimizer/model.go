@@ -300,9 +300,17 @@ func ClipParameters(w []float64, numRelearningSteps int, enableShortTerm bool) [
 
 	// Short-term parameters (W[17-19])
 	if enableShortTerm {
-		result[17] = Clamp(result[17], 0.0, 2.0)
-		result[18] = Clamp(result[18], 0.0, 2.0)
-		result[19] = Clamp(result[19], 0.0, 1.0)
+		// Calculate dynamic ceiling for W17/W18 based on numRelearningSteps
+		w17w18Ceiling := 2.0
+		if numRelearningSteps > 1 {
+			// Constraint: PLS * e^(numRelearningSteps * w17 * w18) should be <= S
+			pls := math.Log(result[11]) + math.Log(math.Pow(2, result[13])-1) + result[14]*0.3
+			ceiling := math.Sqrt(math.Max(-pls/float64(numRelearningSteps), 0.01))
+			w17w18Ceiling = math.Min(ceiling, 2.0)
+		}
+		result[17] = Clamp(result[17], 0.0, w17w18Ceiling)
+		result[18] = Clamp(result[18], 0.0, w17w18Ceiling)
+		result[19] = Clamp(result[19], 0.01, 0.8)
 	} else {
 		result[17] = 0
 		result[18] = 0
