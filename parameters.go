@@ -16,28 +16,41 @@ type Parameters struct {
 }
 
 func DefaultParam() Parameters {
-	var Decay = -0.5
-	var Factor = math.Pow(0.9, 1/Decay) - 1
+	w := DefaultWeights()
+	decay := -w[20]
+	factor := math.Pow(0.9, 1.0/decay) - 1.0
 	return Parameters{
 		RequestRetention: 0.9,
 		MaximumInterval:  36500,
-		W:                DefaultWeights(),
-		Decay:            Decay,
-		Factor:           Factor,
+		W:                w,
+		Decay:            decay,
+		Factor:           factor,
 		EnableShortTerm:  true,
 		EnableFuzz:       false,
 	}
 }
 
+func (p *Parameters) decayAndFactor() (float64, float64) {
+	decay := -p.W[20]
+	factor := math.Pow(0.9, 1.0/decay) - 1.0
+	return decay, factor
+}
+
 func (p *Parameters) forgettingCurve(elapsedDays float64, stability float64) float64 {
-	return math.Pow(1+p.Factor*elapsedDays/stability, p.Decay)
+	decay, factor := p.decayAndFactor()
+	return math.Pow(1+factor*elapsedDays/stability, decay)
 }
 
 func (p *Parameters) initStability(r Rating) float64 {
 	return math.Max(p.W[r-1], 0.1)
 }
+
 func (p *Parameters) initDifficulty(r Rating) float64 {
 	return constrainDifficulty(p.W[4] - math.Exp(p.W[5]*float64(r-1)) + 1)
+}
+
+func (p *Parameters) initDifficultyRaw(r Rating) float64 {
+	return p.W[4] - math.Exp(p.W[5]*float64(r-1)) + 1
 }
 
 func (p *Parameters) ApplyFuzz(ivl float64, elapsedDays float64, enableFuzz bool) float64 {
@@ -62,18 +75,23 @@ func linearDamping(deltaD float64, oldD float64) float64 {
 }
 
 func (p *Parameters) nextInterval(s, elapsedDays float64) float64 {
-	newInterval := s / p.Factor * (math.Pow(p.RequestRetention, 1/p.Decay) - 1)
+	decay, factor := p.decayAndFactor()
+	newInterval := s / factor * (math.Pow(p.RequestRetention, 1/decay) - 1)
 	return p.ApplyFuzz(math.Max(math.Min(math.Round(newInterval), p.MaximumInterval), 1), elapsedDays, p.EnableFuzz)
 }
 
 func (p *Parameters) nextDifficulty(d float64, r Rating) float64 {
 	deltaD := -p.W[6] * float64(r-3)
 	nextD := d + linearDamping(deltaD, d)
-	return constrainDifficulty(p.meanReversion(p.initDifficulty(Easy), nextD))
+	return constrainDifficulty(p.meanReversion(p.initDifficultyRaw(Easy), nextD))
 }
 
 func (p *Parameters) shortTermStability(s float64, r Rating) float64 {
-	return s * math.Exp(p.W[17]*(float64(r-3)+p.W[18]))
+	sinc := math.Exp(p.W[17]*(float64(r-3)+p.W[18])) * math.Pow(s, -p.W[19])
+	if r >= Hard && sinc < 1.0 {
+		sinc = 1.0
+	}
+	return s * sinc
 }
 
 func (p *Parameters) meanReversion(init float64, current float64) float64 {
