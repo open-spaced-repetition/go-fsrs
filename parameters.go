@@ -1,7 +1,15 @@
 package fsrs
 
 import (
+	"fmt"
 	"math"
+)
+
+const (
+	sMin = 0.001
+	sMax = 36500.0
+	dMin = 1.0
+	dMax = 10.0
 )
 
 type Parameters struct {
@@ -17,32 +25,61 @@ type Parameters struct {
 
 func DefaultParam() Parameters {
 	w := DefaultWeights()
-	decay := -w[20]
-	factor := math.Pow(0.9, 1.0/decay) - 1.0
-	return Parameters{
+	p := Parameters{
 		RequestRetention: 0.9,
 		MaximumInterval:  36500,
 		W:                w,
-		Decay:            decay,
-		Factor:           factor,
 		EnableShortTerm:  true,
 		EnableFuzz:       false,
 	}
+	p.Decay, p.Factor = p.decayAndFactor()
+	return p
+}
+
+func (p *Parameters) Validate() error {
+	for i, w := range p.W {
+		if math.IsNaN(w) || math.IsInf(w, 0) {
+			return fmt.Errorf("fsrs: invalid weight W[%d]: must be finite", i)
+		}
+	}
+
+	if p.W[20] <= 0 {
+		return fmt.Errorf("fsrs: invalid weight W[20]: must be > 0")
+	}
+
+	return nil
+}
+
+func defaultDecayAndFactor() (float64, float64) {
+	w := DefaultWeights()
+	decay := -w[20]
+	factor := math.Pow(0.9, 1.0/decay) - 1.0
+	return decay, factor
 }
 
 func (p *Parameters) decayAndFactor() (float64, float64) {
+	if p.Validate() != nil {
+		return defaultDecayAndFactor()
+	}
+
 	decay := -p.W[20]
 	factor := math.Pow(0.9, 1.0/decay) - 1.0
+
+	if math.IsNaN(factor) || math.IsInf(factor, 0) || factor == 0 {
+		return defaultDecayAndFactor()
+	}
+
 	return decay, factor
 }
 
 func (p *Parameters) forgettingCurve(elapsedDays float64, stability float64) float64 {
 	decay, factor := p.decayAndFactor()
+	stability = constrainStability(stability)
 	return math.Pow(1+factor*elapsedDays/stability, decay)
 }
 
 func (p *Parameters) initStability(r Rating) float64 {
-	return math.Max(p.W[r-1], 0.1)
+	return constrainStability(p.W[r-1])
 }
 
 func (p *Parameters) initDifficulty(r Rating) float64 {
@@ -67,7 +104,11 @@ func (p *Parameters) ApplyFuzz(ivl float64, elapsedDays float64, enableFuzz bool
 }
 
 func constrainDifficulty(d float64) float64 {
-	return math.Min(math.Max(d, 1), 10)
+	return math.Min(math.Max(d, dMin), dMax)
+}
+
+func constrainStability(s float64) float64 {
+	return math.Min(math.Max(s, sMin), sMax)
 }
 
 func linearDamping(deltaD float64, oldD float64) float64 {
@@ -76,6 +117,7 @@ func linearDamping(deltaD float64, oldD float64) float64 {
 
 func (p *Parameters) nextInterval(s, elapsedDays float64) float64 {
 	decay, factor := p.decayAndFactor()
+	s = constrainStability(s)
 	newInterval := s / factor * (math.Pow(p.RequestRetention, 1/decay) - 1)
 	return p.ApplyFuzz(math.Max(math.Min(math.Round(newInterval), p.MaximumInterval), 1), elapsedDays, p.EnableFuzz)
 }
@@ -87,11 +129,12 @@ func (p *Parameters) nextDifficulty(d float64, r Rating) float64 {
 }
 
 func (p *Parameters) shortTermStability(s float64, r Rating) float64 {
+	s = constrainStability(s)
 	sinc := math.Exp(p.W[17]*(float64(r-3)+p.W[18])) * math.Pow(s, -p.W[19])
 	if r >= Hard && sinc < 1.0 {
 		sinc = 1.0
 	}
-	return s * sinc
+	return constrainStability(s * sinc)
 }
 
 func (p *Parameters) meanReversion(init float64, current float64) float64 {
@@ -99,6 +142,9 @@ func (p *Parameters) meanReversion(init float64, current float64) float64 {
 }
 
 func (p *Parameters) nextRecallStability(d float64, s float64, r float64, rating Rating) float64 {
+	d = constrainDifficulty(d)
+	s = constrainStability(s)
+
 	var hardPenalty, easyBonus float64
 	if rating == Hard {
 		hardPenalty = p.W[15]
@@ -110,19 +156,26 @@ func (p *Parameters) nextRecallStability(d float64, s float64, r float64, rating
 	} else {
 		easyBonus = 1
 	}
-	return s * (1 + math.Exp(p.W[8])*
+	newS := s * (1 + math.Exp(p.W[8])*
 		(11-d)*
 		math.Pow(s, -p.W[9])*
 		(math.Exp((1-r)*p.W[10])-1)*
 		hardPenalty*
 		easyBonus)
+
+	return constrainStability(newS)
 }
 
 func (p *Parameters) nextForgetStability(d float64, s float64, r float64) float64 {
-	return p.W[11] *
+	d = constrainDifficulty(d)
+	s = constrainStability(s)
+
+	newS := p.W[11] *
 		math.Pow(d, -p.W[12]) *
 		(math.Pow(s+1, p.W[13]) - 1) *
 		math.Exp((1-r)*p.W[14])
+	sCeil := s / math.Exp(p.W[17]*p.W[18])
+	return constrainStability(math.Min(newS, sCeil))
 }
 
 type FuzzRange struct {
