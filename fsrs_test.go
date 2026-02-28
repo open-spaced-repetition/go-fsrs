@@ -35,7 +35,7 @@ func TestBasicSchedulerExample(t *testing.T) {
 		schedulingCards = fsrs.Repeat(card, now)
 	}
 
-	wantIvlList := []uint64{0, 4, 14, 44, 125, 328, 0, 0, 7, 16, 34, 71, 142}
+	wantIvlList := []uint64{0, 2, 11, 46, 163, 498, 0, 0, 2, 4, 7, 12, 21}
 	if !reflect.DeepEqual(ivlList, wantIvlList) {
 		t.Errorf("excepted:%v, got:%v", wantIvlList, ivlList)
 	}
@@ -60,9 +60,9 @@ func TestBasicSchedulerMemoState(t *testing.T) {
 		now = now.Add(time.Duration(ivlList[i]) * 24 * time.Hour)
 		schedulingCards = fsrs.Repeat(card, now)
 	}
-	wantStability := 48.4848
+	wantStability := 53.7719
 	cardStability := roundFloat(schedulingCards[Good].Card.Stability, 4)
-	wantDifficulty := 7.0866
+	wantDifficulty := 6.3464
 	cardDifficulty := roundFloat(schedulingCards[Good].Card.Difficulty, 4)
 	if !reflect.DeepEqual(wantStability, cardStability) {
 		t.Errorf("excepted:%v, got:%v", wantStability, cardStability)
@@ -81,7 +81,7 @@ func TestNextInterval(t *testing.T) {
 		fsrs.RequestRetention = float64(i) / 10
 		ivlList = append(ivlList, fsrs.nextInterval(1, 0))
 	}
-	wantIvlList := []float64{422, 102, 43, 22, 13, 8, 4, 2, 1, 1}
+	wantIvlList := []float64{36500, 34793, 2508, 387, 90, 27, 9, 3, 1, 1}
 	if !reflect.DeepEqual(ivlList, wantIvlList) {
 		t.Errorf("excepted:%v, got:%v", wantIvlList, ivlList)
 	}
@@ -110,15 +110,15 @@ func TestLongTermScheduler(t *testing.T) {
 		dHistory = append(dHistory, roundFloat(card.Difficulty, 4))
 		now = card.Due
 	}
-	wantIvlHistory := []uint64{3, 11, 35, 101, 269, 669, 12, 2, 5, 12, 26, 55, 112}
+	wantIvlHistory := []uint64{3, 14, 57, 196, 586, 1559, 10, 1, 3, 5, 9, 15, 25}
 	if !reflect.DeepEqual(ivlHistory, wantIvlHistory) {
 		t.Errorf("excepted:%v, got:%v", wantIvlHistory, ivlHistory)
 	}
-	wantSHistory := []float64{3.173, 10.7389, 34.5776, 100.7483, 269.2838, 669.3093, 11.8987, 2.236, 5.2001, 11.8993, 26.4917, 55.4949, 111.9726}
+	wantSHistory := []float64{2.3065, 13.8269, 56.9567, 196.2353, 586.4835, 1559.3567, 9.8832, 1.3527, 2.392, 4.8562, 8.7624, 15.186, 25.1362}
 	if !reflect.DeepEqual(sHisotry, wantSHistory) {
 		t.Errorf("excepted:%v, got:%v", wantSHistory, sHisotry)
 	}
-	wantDHistory := []float64{5.2824, 5.273, 5.2635, 5.2542, 5.2448, 5.2355, 6.7654, 7.794, 7.773, 7.7521, 7.7312, 7.7105, 7.6899}
+	wantDHistory := []float64{2.1181, 2.1112, 2.1043, 2.0975, 2.0906, 2.0837, 7.3832, 9.1251, 9.1112, 9.0973, 9.0835, 9.0696, 9.0558}
 	if !reflect.DeepEqual(dHistory, wantDHistory) {
 		t.Errorf("excepted:%v, got:%v", wantDHistory, dHistory)
 	}
@@ -135,8 +135,66 @@ func TestGetRetrievability(t *testing.T) {
 		now = card.Due
 		retrievabilityList = append(retrievabilityList, roundFloat(fsrs.GetRetrievability(card, now), 4))
 	}
-	wantRetrievabilityList := []float64{0, 0.9997, 0.9091, 0.9013}
+	wantRetrievabilityList := []float64{0, 0.9995, 0.9095, 0.8998}
 	if !reflect.DeepEqual(retrievabilityList, wantRetrievabilityList) {
 		t.Errorf("excepted:%v, got:%v", wantRetrievabilityList, retrievabilityList)
+	}
+}
+
+func TestDecayAndFactorDerivedFromW20(t *testing.T) {
+	p := DefaultParam()
+	p.W[20] = 0.2
+	p.Decay = -0.5
+	p.Factor = math.Pow(0.9, 1.0/p.Decay) - 1.0
+
+	got := p.forgettingCurve(1, 1)
+	wantDecay := -p.W[20]
+	wantFactor := math.Pow(0.9, 1.0/wantDecay) - 1.0
+	want := math.Pow(1+wantFactor, wantDecay)
+
+	if math.Abs(got-want) > 1e-12 {
+		t.Fatalf("forgettingCurve should use W[20], got=%v want=%v", got, want)
+	}
+}
+
+func TestInvalidW20ValidationAndFallback(t *testing.T) {
+	p := DefaultParam()
+	p.W[20] = 0
+	if err := p.Validate(); err == nil {
+		t.Fatal("expected validation error for invalid W[20]")
+	}
+
+	gotDecay, gotFactor := p.decayAndFactor()
+	wantDecay, wantFactor := defaultDecayAndFactor()
+	if gotDecay != wantDecay || gotFactor != wantFactor {
+		t.Fatalf("decayAndFactor should fallback to defaults, got=(%v,%v) want=(%v,%v)", gotDecay, gotFactor, wantDecay, wantFactor)
+	}
+
+	pDefault := DefaultParam()
+	if got, want := p.nextInterval(1, 0), pDefault.nextInterval(1, 0); got != want {
+		t.Fatalf("nextInterval should fallback safely, got=%v want=%v", got, want)
+	}
+}
+
+func TestStabilityIsClamped(t *testing.T) {
+	p := DefaultParam()
+	p.W[0] = 1e9
+
+	if got := p.initStability(Again); got != sMax {
+		t.Fatalf("initStability should clamp to sMax, got=%v", got)
+	}
+
+	if got := p.shortTermStability(1e9, Good); got != sMax {
+		t.Fatalf("shortTermStability should clamp to sMax, got=%v", got)
+	}
+}
+
+func TestNewFSRSFallbacksToDefaultWeightsOnInvalidInput(t *testing.T) {
+	p := DefaultParam()
+	p.W[0] = math.NaN()
+
+	fsrs := NewFSRS(p)
+	if !reflect.DeepEqual(fsrs.W, DefaultWeights()) {
+		t.Fatalf("expected default weights fallback, got=%v", fsrs.W)
 	}
 }
