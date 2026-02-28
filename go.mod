@@ -1,3 +1,3 @@
-module github.com/open-spaced-repetition/go-fsrs/v3
+module github.com/open-spaced-repetition/go-fsrs/v4
 
-go 1.21
+go 1.26
