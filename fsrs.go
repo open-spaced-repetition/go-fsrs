@@ -7,6 +7,12 @@ type FSRS struct {
 }
 
 func NewFSRS(param Parameters) *FSRS {
+	if param.Validate() != nil {
+		param.W = DefaultWeights()
+	}
+
+	param.Decay, param.Factor = param.decayAndFactor()
+
 	return &FSRS{
 		Parameters: param,
 	}
