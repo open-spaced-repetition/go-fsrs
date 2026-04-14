@@ -17,17 +17,7 @@ type Card struct {
 }
 
 func NewCard() Card {
-	return Card{
-		Due:           time.Time{},
-		Stability:     0,
-		Difficulty:    0,
-		ElapsedDays:   0,
-		ScheduledDays: 0,
-		Reps:          0,
-		Lapses:        0,
-		State:         New,
-		LastReview:    time.Time{},
-	}
+	return Card{}
 }
 
 type ReviewLog struct {

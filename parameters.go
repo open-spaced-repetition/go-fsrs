@@ -104,11 +104,11 @@ func (p *Parameters) ApplyFuzz(ivl float64, elapsedDays float64, enableFuzz bool
 }
 
 func constrainDifficulty(d float64) float64 {
-	return math.Min(math.Max(d, dMin), dMax)
+	return min(max(d, dMin), dMax)
 }
 
 func constrainStability(s float64) float64 {
-	return math.Min(math.Max(s, sMin), sMax)
+	return min(max(s, sMin), sMax)
 }
 
 func linearDamping(deltaD float64, oldD float64) float64 {
@@ -119,7 +119,7 @@ func (p *Parameters) nextInterval(s, elapsedDays float64) float64 {
 	decay, factor := p.decayAndFactor()
 	s = constrainStability(s)
 	newInterval := s / factor * (math.Pow(p.RequestRetention, 1/decay) - 1)
-	return p.ApplyFuzz(math.Max(math.Min(math.Round(newInterval), p.MaximumInterval), 1), elapsedDays, p.EnableFuzz)
+	return p.ApplyFuzz(max(min(math.Round(newInterval), p.MaximumInterval), 1), elapsedDays, p.EnableFuzz)
 }
 
 func (p *Parameters) nextDifficulty(d float64, r Rating) float64 {
@@ -175,7 +175,7 @@ func (p *Parameters) nextForgetStability(d float64, s float64, r float64) float6
 		(math.Pow(s+1, p.W[13]) - 1) *
 		math.Exp((1-r)*p.W[14])
 	sCeil := s / math.Exp(p.W[17]*p.W[18])
-	return constrainStability(math.Min(newS, sCeil))
+	return constrainStability(min(newS, sCeil))
 }
 
 type FuzzRange struct {
@@ -193,17 +193,17 @@ var FUZZ_RANGES = []FuzzRange{
 func getFuzzRange(interval, elapsedDays, maximumInterval float64) (minIvl, maxIvl int) {
 	delta := 1.0
 	for _, r := range FUZZ_RANGES {
-		delta += r.Factor * math.Max(math.Min(interval, r.End)-r.Start, 0.0)
+		delta += r.Factor * max(min(interval, r.End)-r.Start, 0.0)
 	}
 
-	interval = math.Min(interval, maximumInterval)
-	minIvlFloat := math.Max(2, math.Round(interval-delta))
-	maxIvlFloat := math.Min(math.Round(interval+delta), maximumInterval)
+	interval = min(interval, maximumInterval)
+	minIvlFloat := max(2.0, math.Round(interval-delta))
+	maxIvlFloat := min(math.Round(interval+delta), maximumInterval)
 
 	if interval > elapsedDays {
-		minIvlFloat = math.Max(minIvlFloat, elapsedDays+1)
+		minIvlFloat = max(minIvlFloat, elapsedDays+1)
 	}
-	minIvlFloat = math.Min(minIvlFloat, maxIvlFloat)
+	minIvlFloat = min(minIvlFloat, maxIvlFloat)
 
 	minIvl = int(minIvlFloat)
 	maxIvl = int(maxIvlFloat)

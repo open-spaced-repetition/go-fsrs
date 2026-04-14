@@ -20,7 +20,7 @@ type alea struct {
 	s2 float64
 }
 
-func NewAlea(seed interface{}) *alea {
+func NewAlea(seed any) *alea {
 	mash := Mash()
 	a := &alea{
 		c:  1,
@@ -101,7 +101,7 @@ func Mash() func(string) float64 {
 
 type PRNG func() float64
 
-func Alea(seed interface{}) PRNG {
+func Alea(seed any) PRNG {
 	xg := NewAlea(seed)
 	prng := func() float64 {
 		return xg.Next()
