@@ -1,7 +1,6 @@
 package fsrs
 
 import (
-	"math"
 	"time"
 )
 
@@ -103,10 +102,10 @@ func (lts longTermScheduler) nextInterval(nextAgain, nextHard, nextGood, nextEas
 	goodInterval := lts.parameters.nextInterval(nextGood.Stability, elapsedDays)
 	easyInterval := lts.parameters.nextInterval(nextEasy.Stability, elapsedDays)
 
-	againInterval = math.Min(againInterval, hardInterval)
-	hardInterval = math.Max(hardInterval, againInterval+1)
-	goodInterval = math.Max(goodInterval, hardInterval+1)
-	easyInterval = math.Max(easyInterval, goodInterval+1)
+	againInterval = min(againInterval, hardInterval)
+	hardInterval = max(hardInterval, againInterval+1)
+	goodInterval = max(goodInterval, hardInterval+1)
+	easyInterval = max(easyInterval, goodInterval+1)
 
 	nextAgain.ScheduledDays = uint64(againInterval)
 	nextAgain.Due = lts.now.Add(time.Duration(againInterval) * 24 * time.Hour)

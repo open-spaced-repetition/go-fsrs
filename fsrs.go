@@ -29,9 +29,7 @@ func (f *FSRS) Next(card Card, now time.Time, grade Rating) SchedulingInfo {
 func (f *FSRS) GetRetrievability(card Card, now time.Time) float64 {
 	if card.State == New {
 		return 0
-	} else {
-		elapsedDays := now.Sub(card.LastReview).Hours() / 24
-		retrievability := f.Parameters.forgettingCurve(elapsedDays, card.Stability)
-		return retrievability
 	}
+	elapsedDays := now.Sub(card.LastReview).Hours() / 24
+	return f.Parameters.forgettingCurve(elapsedDays, card.Stability)
 }

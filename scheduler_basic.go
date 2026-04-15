@@ -1,7 +1,6 @@
 package fsrs
 
 import (
-	"math"
 	"time"
 )
 
@@ -86,7 +85,7 @@ func (bs basicScheduler) learningState(grade Rating) SchedulingInfo {
 	case Easy:
 		goodStability := bs.parameters.shortTermStability(bs.last.Stability, Good)
 		goodInterval := bs.parameters.nextInterval(goodStability, interval)
-		easyInterval := math.Max(
+		easyInterval := max(
 			bs.parameters.nextInterval(next.Stability, interval),
 			float64(goodInterval)+1,
 		)
@@ -154,9 +153,9 @@ func (bs basicScheduler) nextDs(nextAgain, nextHard, nextGood, nextEasy *Card, d
 func (bs basicScheduler) nextInterval(nextAgain, nextHard, nextGood, nextEasy *Card, elapsedDays float64) {
 	hardInterval := bs.parameters.nextInterval(nextHard.Stability, elapsedDays)
 	goodInterval := bs.parameters.nextInterval(nextGood.Stability, elapsedDays)
-	hardInterval = math.Min(hardInterval, goodInterval)
-	goodInterval = math.Max(goodInterval, hardInterval+1)
-	easyInterval := math.Max(
+	hardInterval = min(hardInterval, goodInterval)
+	goodInterval = max(goodInterval, hardInterval+1)
+	easyInterval := max(
 		bs.parameters.nextInterval(nextEasy.Stability, elapsedDays),
 		goodInterval+1,
 	)
