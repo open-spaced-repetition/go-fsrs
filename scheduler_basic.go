@@ -1,6 +1,7 @@
 package fsrs
 
 import (
+	"math"
 	"time"
 )
 
@@ -16,6 +17,35 @@ func (p *Parameters) NewBasicScheduler(card Card, now time.Time) *Scheduler {
 	})
 }
 
+func minutesToDuration(minutes float64) time.Duration {
+	return time.Duration(minutes * float64(time.Minute))
+}
+
+func daysToDuration(days, maxDays float64) time.Duration {
+	days = math.Min(days, maxDays)
+	hours := days * 24
+	return time.Duration(hours * float64(time.Hour))
+}
+
+func (bs basicScheduler) applyStep(next *Card, delayMinutes float64, toState State) {
+	next.Due = bs.now.Add(minutesToDuration(delayMinutes))
+	if delayMinutes >= 1440 {
+		next.ScheduledDays = uint64(math.Floor(delayMinutes / 1440))
+		next.State = Review
+	} else {
+		next.ScheduledDays = 0
+		next.State = toState
+	}
+}
+
+func (bs basicScheduler) graduateToReview(next *Card, stability, elapsedDays float64) {
+	ivl := bs.parameters.nextInterval(stability, elapsedDays)
+	next.ScheduledDays = uint64(ivl)
+	next.Due = bs.now.Add(daysToDuration(ivl, bs.parameters.MaximumInterval))
+	next.State = Review
+	next.RemainingSteps = 0
+}
+
 func (bs basicScheduler) newState(grade Rating) SchedulingInfo {
 	exist, ok := bs.next[grade]
 	if ok {
@@ -25,28 +55,32 @@ func (bs basicScheduler) newState(grade Rating) SchedulingInfo {
 	next := bs.current
 	next.Difficulty = bs.parameters.initDifficulty(grade)
 	next.Stability = bs.parameters.initStability(grade)
+	steps := bs.parameters.LearningSteps
 
 	switch grade {
 	case Again:
-		next.ScheduledDays = 0
-		next.Due = bs.now.Add(1 * time.Minute)
-		next.State = Learning
+		if len(steps) == 0 {
+			bs.graduateToReview(&next, next.Stability, float64(next.ElapsedDays))
+		} else {
+			next.RemainingSteps = len(steps)
+			bs.applyStep(&next, bs.parameters.againDelayMinutes(steps), Learning)
+		}
 	case Hard:
-		next.ScheduledDays = 0
-		next.Due = bs.now.Add(5 * time.Minute)
-		next.State = Learning
+		if len(steps) == 0 {
+			bs.graduateToReview(&next, next.Stability, float64(next.ElapsedDays))
+		} else {
+			next.RemainingSteps = len(steps)
+			bs.applyStep(&next, bs.parameters.hardDelayMinutes(steps), Learning)
+		}
 	case Good:
-		next.ScheduledDays = 0
-		next.Due = bs.now.Add(10 * time.Minute)
-		next.State = Learning
+		if delay, ok := bs.parameters.goodDelayMinutes(steps, len(steps)); ok {
+			next.RemainingSteps = len(steps) - 1
+			bs.applyStep(&next, delay, Learning)
+		} else {
+			bs.graduateToReview(&next, next.Stability, float64(next.ElapsedDays))
+		}
 	case Easy:
-		easyInterval := bs.parameters.nextInterval(
-			next.Stability,
-			float64(next.ElapsedDays),
-		)
-		next.ScheduledDays = uint64(easyInterval)
-		next.Due = bs.now.Add(time.Duration(easyInterval) * 24 * time.Hour)
-		next.State = Review
+		bs.graduateToReview(&next, next.Stability, float64(next.ElapsedDays))
 	}
 
 	item := SchedulingInfo{
@@ -55,6 +89,16 @@ func (bs basicScheduler) newState(grade Rating) SchedulingInfo {
 	}
 	bs.next[grade] = item
 	return item
+}
+
+func (bs basicScheduler) computeLearningStability(grade Rating, interval float64, retrievability float64) float64 {
+	if interval == 0 {
+		return bs.parameters.shortTermStability(bs.last.Stability, grade)
+	}
+	if grade == Again {
+		return bs.parameters.nextForgetStability(bs.last.Difficulty, bs.last.Stability, retrievability)
+	}
+	return bs.parameters.nextRecallStability(bs.last.Difficulty, bs.last.Stability, retrievability, grade)
 }
 
 func (bs basicScheduler) learningState(grade Rating) SchedulingInfo {
@@ -66,32 +110,51 @@ func (bs basicScheduler) learningState(grade Rating) SchedulingInfo {
 	next := bs.current
 	interval := float64(bs.current.ElapsedDays)
 	next.Difficulty = bs.parameters.nextDifficulty(bs.last.Difficulty, grade)
-	next.Stability = bs.parameters.shortTermStability(bs.last.Stability, grade)
+
+	var retrievability float64
+	if interval > 0 {
+		retrievability = bs.parameters.forgettingCurve(interval, bs.last.Stability)
+	}
+	next.Stability = bs.computeLearningStability(grade, interval, retrievability)
+
+	var steps []float64
+	var toState State
+	if bs.last.State == Relearning {
+		steps = bs.parameters.RelearningSteps
+		toState = Relearning
+	} else {
+		steps = bs.parameters.LearningSteps
+		toState = Learning
+	}
+	remaining := bs.current.RemainingSteps
 
 	switch grade {
 	case Again:
-		next.ScheduledDays = 0
-		next.Due = bs.now.Add(5 * time.Minute)
-		next.State = bs.last.State
+		if len(steps) == 0 || remaining <= 0 {
+			bs.graduateToReview(&next, next.Stability, interval)
+		} else {
+			next.RemainingSteps = len(steps)
+			bs.applyStep(&next, bs.parameters.againDelayMinutes(steps), toState)
+		}
 	case Hard:
-		next.ScheduledDays = 0
-		next.Due = bs.now.Add(10 * time.Minute)
-		next.State = bs.last.State
+		if len(steps) == 0 || remaining <= 0 {
+			bs.graduateToReview(&next, next.Stability, interval)
+		} else {
+			bs.applyStep(&next, bs.parameters.hardDelayMinutes(steps), toState)
+		}
 	case Good:
-		goodInterval := bs.parameters.nextInterval(next.Stability, interval)
-		next.ScheduledDays = uint64(goodInterval)
-		next.Due = bs.now.Add(time.Duration(goodInterval) * 24 * time.Hour)
-		next.State = Review
+		if delay, ok := bs.parameters.goodDelayMinutes(steps, remaining); ok {
+			next.RemainingSteps = remaining - 1
+			bs.applyStep(&next, delay, toState)
+		} else {
+			bs.graduateToReview(&next, next.Stability, interval)
+		}
 	case Easy:
-		goodStability := bs.parameters.shortTermStability(bs.last.Stability, Good)
-		goodInterval := bs.parameters.nextInterval(goodStability, interval)
-		easyInterval := max(
-			bs.parameters.nextInterval(next.Stability, interval),
-			float64(goodInterval)+1,
-		)
+		easyInterval := bs.parameters.nextInterval(next.Stability, interval)
 		next.ScheduledDays = uint64(easyInterval)
-		next.Due = bs.now.Add(time.Duration(easyInterval) * 24 * time.Hour)
+		next.Due = bs.now.Add(daysToDuration(easyInterval, bs.parameters.MaximumInterval))
 		next.State = Review
+		next.RemainingSteps = 0
 	}
 
 	item := SchedulingInfo{
@@ -111,16 +174,58 @@ func (bs basicScheduler) reviewState(grade Rating) SchedulingInfo {
 	interval := float64(bs.current.ElapsedDays)
 	difficulty := bs.last.Difficulty
 	stability := bs.last.Stability
-	retrievability := bs.parameters.forgettingCurve(interval, stability)
 
 	nextAgain := bs.current
 	nextHard := bs.current
 	nextGood := bs.current
 	nextEasy := bs.current
 
-	bs.nextDs(&nextAgain, &nextHard, &nextGood, &nextEasy, difficulty, stability, retrievability)
-	bs.nextInterval(&nextAgain, &nextHard, &nextGood, &nextEasy, interval)
-	bs.nextState(&nextAgain, &nextHard, &nextGood, &nextEasy)
+	if interval == 0 {
+		nextAgain.Difficulty = bs.parameters.nextDifficulty(difficulty, Again)
+		nextAgain.Stability = bs.parameters.shortTermStability(stability, Again)
+		nextHard.Difficulty = bs.parameters.nextDifficulty(difficulty, Hard)
+		nextHard.Stability = bs.parameters.shortTermStability(stability, Hard)
+		nextGood.Difficulty = bs.parameters.nextDifficulty(difficulty, Good)
+		nextGood.Stability = bs.parameters.shortTermStability(stability, Good)
+		nextEasy.Difficulty = bs.parameters.nextDifficulty(difficulty, Easy)
+		nextEasy.Stability = bs.parameters.shortTermStability(stability, Easy)
+	} else {
+		retrievability := bs.parameters.forgettingCurve(interval, stability)
+		bs.nextDs(&nextAgain, &nextHard, &nextGood, &nextEasy, difficulty, stability, retrievability)
+	}
+
+	relearnSteps := bs.parameters.RelearningSteps
+	if len(relearnSteps) > 0 {
+		nextAgain.RemainingSteps = len(relearnSteps)
+		bs.applyStep(&nextAgain, bs.parameters.againDelayMinutes(relearnSteps), Relearning)
+	} else {
+		bs.graduateToReview(&nextAgain, nextAgain.Stability, interval)
+	}
+
+	hardInterval := bs.parameters.nextInterval(nextHard.Stability, interval)
+	goodInterval := bs.parameters.nextInterval(nextGood.Stability, interval)
+	hardInterval = min(hardInterval, goodInterval)
+	goodInterval = max(goodInterval, hardInterval+1)
+	easyInterval := max(
+		bs.parameters.nextInterval(nextEasy.Stability, interval),
+		goodInterval+1,
+	)
+
+	nextHard.ScheduledDays = uint64(hardInterval)
+	nextHard.Due = bs.now.Add(daysToDuration(hardInterval, bs.parameters.MaximumInterval))
+	nextHard.State = Review
+	nextHard.RemainingSteps = 0
+
+	nextGood.ScheduledDays = uint64(goodInterval)
+	nextGood.Due = bs.now.Add(daysToDuration(goodInterval, bs.parameters.MaximumInterval))
+	nextGood.State = Review
+	nextGood.RemainingSteps = 0
+
+	nextEasy.ScheduledDays = uint64(easyInterval)
+	nextEasy.Due = bs.now.Add(daysToDuration(easyInterval, bs.parameters.MaximumInterval))
+	nextEasy.State = Review
+	nextEasy.RemainingSteps = 0
+
 	nextAgain.Lapses++
 
 	itemAgain := SchedulingInfo{Card: nextAgain, ReviewLog: bs.buildLog(Again)}
@@ -148,34 +253,4 @@ func (bs basicScheduler) nextDs(nextAgain, nextHard, nextGood, nextEasy *Card, d
 
 	nextEasy.Difficulty = bs.parameters.nextDifficulty(difficulty, Easy)
 	nextEasy.Stability = bs.parameters.nextRecallStability(difficulty, stability, retrievability, Easy)
-}
-
-func (bs basicScheduler) nextInterval(nextAgain, nextHard, nextGood, nextEasy *Card, elapsedDays float64) {
-	hardInterval := bs.parameters.nextInterval(nextHard.Stability, elapsedDays)
-	goodInterval := bs.parameters.nextInterval(nextGood.Stability, elapsedDays)
-	hardInterval = min(hardInterval, goodInterval)
-	goodInterval = max(goodInterval, hardInterval+1)
-	easyInterval := max(
-		bs.parameters.nextInterval(nextEasy.Stability, elapsedDays),
-		goodInterval+1,
-	)
-
-	nextAgain.ScheduledDays = 0
-	nextAgain.Due = bs.now.Add(5 * time.Minute)
-
-	nextHard.ScheduledDays = uint64(hardInterval)
-	nextHard.Due = bs.now.Add(time.Duration(hardInterval) * 24 * time.Hour)
-
-	nextGood.ScheduledDays = uint64(goodInterval)
-	nextGood.Due = bs.now.Add(time.Duration(goodInterval) * 24 * time.Hour)
-
-	nextEasy.ScheduledDays = uint64(easyInterval)
-	nextEasy.Due = bs.now.Add(time.Duration(easyInterval) * 24 * time.Hour)
-}
-
-func (bs basicScheduler) nextState(nextAgain, nextHard, nextGood, nextEasy *Card) {
-	nextAgain.State = Relearning
-	nextHard.State = Review
-	nextGood.State = Review
-	nextEasy.State = Review
 }

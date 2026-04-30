@@ -2,7 +2,6 @@ package fsrs
 
 import (
 	"fmt"
-	"math"
 	"time"
 )
 
@@ -54,12 +53,20 @@ func (s *Scheduler) initSeed() {
 }
 
 func (s *Scheduler) buildLog(rating Rating) ReviewLog {
+	due := s.last.Due
+	if !s.last.LastReview.IsZero() {
+		due = s.last.LastReview
+	}
 	return ReviewLog{
-		Rating:        rating,
-		State:         s.current.State,
-		ElapsedDays:   s.current.ElapsedDays,
-		ScheduledDays: s.current.ScheduledDays,
-		Review:        s.now,
+		Rating:         rating,
+		Due:            due,
+		ScheduledDays:  s.current.ScheduledDays,
+		ElapsedDays:    s.current.ElapsedDays,
+		Review:         s.now,
+		State:          s.current.State,
+		Stability:      s.current.Stability,
+		Difficulty:     s.current.Difficulty,
+		RemainingSteps: s.current.RemainingSteps,
 	}
 }
 
@@ -74,7 +81,7 @@ func (p *Parameters) newScheduler(card Card, now time.Time, newImpl func(s *Sche
 
 	var interval float64 = 0 // card.state === State.New => 0
 	if s.current.State != New && !s.current.LastReview.IsZero() {
-		interval = math.Floor(s.now.Sub(s.current.LastReview).Hours() / 24)
+		interval = float64(dateDiffInDays(s.current.LastReview, s.now))
 	}
 	s.current.LastReview = s.now
 	s.current.ElapsedDays = uint64(interval)
