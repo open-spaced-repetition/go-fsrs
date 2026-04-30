@@ -3,6 +3,7 @@ package fsrs
 import (
 	"fmt"
 	"math"
+	"time"
 )
 
 const (
@@ -12,25 +13,49 @@ const (
 	dMax = 10.0
 )
 
+var DefaultLearningSteps = []float64{1, 10}
+
+var DefaultRelearningSteps = []float64{10}
+
+func dateDiffInDays(last, cur time.Time) uint64 {
+	lr := last.UTC()
+	utc1 := time.Date(lr.Year(), lr.Month(), lr.Day(), 0, 0, 0, 0, time.UTC)
+	n := cur.UTC()
+	utc2 := time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, time.UTC)
+	hours := utc2.Sub(utc1).Hours()
+	if hours < 0 {
+		return 0
+	}
+	return uint64(math.Floor(hours / 24))
+}
+
+func dateDiffRaw(last, cur time.Time) float64 {
+	return math.Floor(cur.Sub(last).Hours() / 24)
+}
+
 type Parameters struct {
-	RequestRetention float64 `json:"RequestRetention"`
-	MaximumInterval  float64 `json:"MaximumInterval"`
-	W                Weights `json:"Weights"`
-	Decay            float64 `json:"Decay"`
-	Factor           float64 `json:"Factor"`
-	EnableShortTerm  bool    `json:"EnableShortTerm"`
-	EnableFuzz       bool    `json:"EnableFuzz"`
-	seed             string
+	RequestRetention  float64   `json:"RequestRetention"`
+	MaximumInterval   float64   `json:"MaximumInterval"`
+	W                 Weights   `json:"Weights"`
+	Decay             float64   `json:"Decay"`
+	Factor            float64   `json:"Factor"`
+	EnableShortTerm   bool      `json:"EnableShortTerm"`
+	EnableFuzz        bool      `json:"EnableFuzz"`
+	LearningSteps     []float64 `json:"LearningSteps"`
+	RelearningSteps   []float64 `json:"RelearningSteps"`
+	seed              string
 }
 
 func DefaultParam() Parameters {
 	w := DefaultWeights()
 	p := Parameters{
-		RequestRetention: 0.9,
-		MaximumInterval:  36500,
-		W:                w,
-		EnableShortTerm:  true,
-		EnableFuzz:       false,
+		RequestRetention:  0.9,
+		MaximumInterval:   36500,
+		W:                 w,
+		EnableShortTerm:   true,
+		EnableFuzz:        false,
+		LearningSteps:     DefaultLearningSteps,
+		RelearningSteps:   DefaultRelearningSteps,
 	}
 	p.Decay, p.Factor = p.decayAndFactor()
 	return p
@@ -79,7 +104,7 @@ func (p *Parameters) forgettingCurve(elapsedDays float64, stability float64) flo
 }
 
 func (p *Parameters) initStability(r Rating) float64 {
-	return constrainStability(p.W[r-1])
+	return min(max(p.W[r-1], 0.1), sMax)
 }
 
 func (p *Parameters) initDifficulty(r Rating) float64 {
@@ -120,6 +145,57 @@ func (p *Parameters) nextInterval(s, elapsedDays float64) float64 {
 	s = constrainStability(s)
 	newInterval := s / factor * (math.Pow(p.RequestRetention, 1/decay) - 1)
 	return p.ApplyFuzz(max(min(math.Round(newInterval), p.MaximumInterval), 1), elapsedDays, p.EnableFuzz)
+}
+
+func (p *Parameters) nextIntervalRaw(s float64) float64 {
+	decay, factor := p.decayAndFactor()
+	s = constrainStability(s)
+	return s / factor * (math.Pow(p.RequestRetention, 1/decay) - 1)
+}
+
+func (p *Parameters) NextState(current *MemoryState, desiredRetention float64, daysElapsed uint64, grade Rating) ItemState {
+	decay, factor := p.decayAndFactor()
+	return p.nextStateInner(current, desiredRetention, float64(daysElapsed), grade, decay, factor)
+}
+
+func (p *Parameters) NextStates(current *MemoryState, desiredRetention float64, daysElapsed uint64) NextStates {
+	decay, factor := p.decayAndFactor()
+	elapsed := float64(daysElapsed)
+	return NextStates{
+		Again: p.nextStateInner(current, desiredRetention, elapsed, Again, decay, factor),
+		Hard:  p.nextStateInner(current, desiredRetention, elapsed, Hard, decay, factor),
+		Good:  p.nextStateInner(current, desiredRetention, elapsed, Good, decay, factor),
+		Easy:  p.nextStateInner(current, desiredRetention, elapsed, Easy, decay, factor),
+	}
+}
+
+func (p *Parameters) nextStateInner(current *MemoryState, desiredRetention, elapsed float64, grade Rating, decay, factor float64) ItemState {
+	var newS, newD float64
+
+	if current == nil || current.Stability == 0 {
+		newS = p.initStability(grade)
+		newD = p.initDifficulty(grade)
+	} else {
+		newD = p.nextDifficulty(current.Difficulty, grade)
+		if elapsed == 0 && p.EnableShortTerm {
+			newS = p.shortTermStability(current.Stability, grade)
+		} else {
+			retrievability := p.forgettingCurve(elapsed, current.Stability)
+			if grade == Again {
+				newS = p.nextForgetStability(current.Difficulty, current.Stability, retrievability)
+			} else {
+				newS = p.nextRecallStability(current.Difficulty, current.Stability, retrievability, grade)
+			}
+		}
+	}
+
+	newS = constrainStability(newS)
+	interval := newS / factor * (math.Pow(desiredRetention, 1/decay) - 1)
+
+	return ItemState{
+		Memory:   MemoryState{Stability: newS, Difficulty: newD},
+		Interval: interval,
+	}
 }
 
 func (p *Parameters) nextDifficulty(d float64, r Rating) float64 {
@@ -174,7 +250,12 @@ func (p *Parameters) nextForgetStability(d float64, s float64, r float64) float6
 		math.Pow(d, -p.W[12]) *
 		(math.Pow(s+1, p.W[13]) - 1) *
 		math.Exp((1-r)*p.W[14])
-	sCeil := s / math.Exp(p.W[17]*p.W[18])
+	var sCeil float64
+	if p.EnableShortTerm {
+		sCeil = s / math.Exp(p.W[17]*p.W[18])
+	} else {
+		sCeil = s
+	}
 	return constrainStability(min(newS, sCeil))
 }
 
@@ -209,4 +290,30 @@ func getFuzzRange(interval, elapsedDays, maximumInterval float64) (minIvl, maxIv
 	maxIvl = int(maxIvlFloat)
 
 	return minIvl, maxIvl
+}
+
+func (p *Parameters) againDelayMinutes(steps []float64) float64 {
+	if len(steps) == 0 {
+		return 0
+	}
+	return steps[0]
+}
+
+func (p *Parameters) hardDelayMinutes(steps []float64) float64 {
+	if len(steps) == 0 {
+		return 0
+	}
+	first := steps[0]
+	if len(steps) == 1 {
+		return math.Round(first * 1.5)
+	}
+	return math.Round((first + steps[1]) / 2)
+}
+
+func (p *Parameters) goodDelayMinutes(steps []float64, remaining int) (float64, bool) {
+	nextIdx := len(steps) - remaining + 1
+	if nextIdx < 0 || nextIdx >= len(steps) {
+		return 0, false
+	}
+	return steps[nextIdx], true
 }

@@ -108,23 +108,27 @@ func (lts longTermScheduler) nextInterval(nextAgain, nextHard, nextGood, nextEas
 	easyInterval = max(easyInterval, goodInterval+1)
 
 	nextAgain.ScheduledDays = uint64(againInterval)
-	nextAgain.Due = lts.now.Add(time.Duration(againInterval) * 24 * time.Hour)
+	nextAgain.Due = lts.now.Add(daysToDuration(againInterval, lts.parameters.MaximumInterval))
 
 	nextHard.ScheduledDays = uint64(hardInterval)
-	nextHard.Due = lts.now.Add(time.Duration(hardInterval) * 24 * time.Hour)
+	nextHard.Due = lts.now.Add(daysToDuration(hardInterval, lts.parameters.MaximumInterval))
 
 	nextGood.ScheduledDays = uint64(goodInterval)
-	nextGood.Due = lts.now.Add(time.Duration(goodInterval) * 24 * time.Hour)
+	nextGood.Due = lts.now.Add(daysToDuration(goodInterval, lts.parameters.MaximumInterval))
 
 	nextEasy.ScheduledDays = uint64(easyInterval)
-	nextEasy.Due = lts.now.Add(time.Duration(easyInterval) * 24 * time.Hour)
+	nextEasy.Due = lts.now.Add(daysToDuration(easyInterval, lts.parameters.MaximumInterval))
 }
 
 func (lts longTermScheduler) nextState(nextAgain, nextHard, nextGood, nextEasy *Card) {
 	nextAgain.State = Review
+	nextAgain.RemainingSteps = 0
 	nextHard.State = Review
+	nextHard.RemainingSteps = 0
 	nextGood.State = Review
+	nextGood.RemainingSteps = 0
 	nextEasy.State = Review
+	nextEasy.RemainingSteps = 0
 }
 
 func (lts longTermScheduler) updateNext(nextAgain, nextHard, nextGood, nextEasy *Card) {

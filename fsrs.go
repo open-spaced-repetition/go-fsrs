@@ -1,6 +1,9 @@
 package fsrs
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 type FSRS struct {
 	Parameters
@@ -27,9 +30,9 @@ func (f *FSRS) Next(card Card, now time.Time, grade Rating) SchedulingInfo {
 }
 
 func (f *FSRS) GetRetrievability(card Card, now time.Time) float64 {
-	if card.State == New {
+	if card.State == New || card.LastReview.IsZero() {
 		return 0
 	}
-	elapsedDays := now.Sub(card.LastReview).Hours() / 24
+	elapsedDays := math.Max(0, dateDiffRaw(card.LastReview, now))
 	return f.Parameters.forgettingCurve(elapsedDays, card.Stability)
 }
