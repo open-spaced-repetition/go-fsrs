@@ -5,15 +5,16 @@ import (
 )
 
 type Card struct {
-	Due           time.Time `json:"Due"`
-	Stability     float64   `json:"Stability"`
-	Difficulty    float64   `json:"Difficulty"`
-	ElapsedDays   uint64    `json:"ElapsedDays"`
-	ScheduledDays uint64    `json:"ScheduledDays"`
-	Reps          uint64    `json:"Reps"`
-	Lapses        uint64    `json:"Lapses"`
-	State         State     `json:"State"`
-	LastReview    time.Time `json:"LastReview"`
+	Due             time.Time `json:"Due"`
+	Stability       float64   `json:"Stability"`
+	Difficulty      float64   `json:"Difficulty"`
+	ElapsedDays     uint64    `json:"ElapsedDays"`
+	ScheduledDays   uint64    `json:"ScheduledDays"`
+	Reps            uint64    `json:"Reps"`
+	Lapses          uint64    `json:"Lapses"`
+	State           State     `json:"State"`
+	LastReview      time.Time `json:"LastReview"`
+	RemainingSteps  int       `json:"RemainingSteps"`
 }
 
 func NewCard() Card {
@@ -21,11 +22,15 @@ func NewCard() Card {
 }
 
 type ReviewLog struct {
-	Rating        Rating    `json:"Rating"`
-	ScheduledDays uint64    `json:"ScheduledDays"`
-	ElapsedDays   uint64    `json:"ElapsedDays"`
-	Review        time.Time `json:"Review"`
-	State         State     `json:"State"`
+	Rating         Rating    `json:"Rating"`
+	Due            time.Time `json:"Due"`
+	ScheduledDays  uint64    `json:"ScheduledDays"`
+	ElapsedDays    uint64    `json:"ElapsedDays"`
+	Review         time.Time `json:"Review"`
+	State          State     `json:"State"`
+	Stability      float64   `json:"Stability"`
+	Difficulty     float64   `json:"Difficulty"`
+	RemainingSteps int       `json:"RemainingSteps"`
 }
 
 type schedulingCards struct {
@@ -80,3 +85,20 @@ const (
 	Review
 	Relearning
 )
+
+type MemoryState struct {
+	Stability  float64 `json:"Stability"`
+	Difficulty float64 `json:"Difficulty"`
+}
+
+type ItemState struct {
+	Memory   MemoryState `json:"Memory"`
+	Interval float64     `json:"Interval"`
+}
+
+type NextStates struct {
+	Again ItemState `json:"Again"`
+	Hard  ItemState `json:"Hard"`
+	Good  ItemState `json:"Good"`
+	Easy  ItemState `json:"Easy"`
+}
