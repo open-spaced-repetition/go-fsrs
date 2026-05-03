@@ -1,9 +1,12 @@
 package fsrs
 
 import (
+	"errors"
 	"math"
 	"time"
 )
+
+var ErrManualRating = errors.New("fsrs: cannot rollback a manual rating")
 
 type FSRS struct {
 	Parameters
@@ -53,4 +56,25 @@ func (f *FSRS) Forget(card Card, now time.Time, resetCount bool) SchedulingInfo 
 		Review: now,
 	}
 	return SchedulingInfo{Card: forgetCard, ReviewLog: log}
+}
+
+func (f *FSRS) Rollback(card Card, log ReviewLog) (Card, error) {
+	if log.Rating == Manual {
+		return Card{}, ErrManualRating
+	}
+	result := card
+	result.State = log.State
+	result.Due = log.Due
+	result.Stability = log.Stability
+	result.Difficulty = log.Difficulty
+	result.ElapsedDays = log.ElapsedDays
+	result.ScheduledDays = log.ScheduledDays
+	result.LastReview = log.Review
+	if card.Reps > 0 {
+		result.Reps = card.Reps - 1
+	}
+	if log.Rating == Again && card.Lapses > 0 {
+		result.Lapses = card.Lapses - 1
+	}
+	return result, nil
 }

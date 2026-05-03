@@ -1,6 +1,7 @@
 package fsrs
 
 import (
+	"errors"
 	"math"
 	"reflect"
 	"testing"
@@ -1474,12 +1475,6 @@ func TestForget(t *testing.T) {
 		}
 	})
 
-	t.Run("manual rating string", func(t *testing.T) {
-		if Manual.String() != "Manual" {
-			t.Errorf("expected Manual.String()=Manual, got=%s", Manual.String())
-		}
-	})
-
 	t.Run("review state card", func(t *testing.T) {
 		schedulingCards := fsrs.Repeat(NewCard(), time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC))
 		reviewCard := schedulingCards[Good].Card
@@ -1519,6 +1514,220 @@ func TestForget(t *testing.T) {
 		}
 		if result.ReviewLog.Review != reviewCard.Due {
 			t.Errorf("expected log Review=%v, got=%v", reviewCard.Due, result.ReviewLog.Review)
+		}
+	})
+}
+
+func TestRollback(t *testing.T) {
+	p := DefaultParam()
+	fsrs := NewFSRS(p)
+	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
+
+	t.Run("restores card after good review", func(t *testing.T) {
+		card := NewCard()
+		schedulingCards := fsrs.Repeat(card, now)
+		result := fsrs.Next(card, now, Good)
+		rolledBack, err := fsrs.Rollback(result.Card, result.ReviewLog)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if rolledBack.State != result.ReviewLog.State {
+			t.Errorf("expected State=%v, got=%v", result.ReviewLog.State, rolledBack.State)
+		}
+		if rolledBack.Due != result.ReviewLog.Due {
+			t.Errorf("expected Due=%v, got=%v", result.ReviewLog.Due, rolledBack.Due)
+		}
+		if rolledBack.Stability != result.ReviewLog.Stability {
+			t.Errorf("expected Stability=%v, got=%v", result.ReviewLog.Stability, rolledBack.Stability)
+		}
+		if rolledBack.Difficulty != result.ReviewLog.Difficulty {
+			t.Errorf("expected Difficulty=%v, got=%v", result.ReviewLog.Difficulty, rolledBack.Difficulty)
+		}
+		if rolledBack.ScheduledDays != result.ReviewLog.ScheduledDays {
+			t.Errorf("expected ScheduledDays=%d, got=%d", result.ReviewLog.ScheduledDays, rolledBack.ScheduledDays)
+		}
+		if rolledBack.ElapsedDays != result.ReviewLog.ElapsedDays {
+			t.Errorf("expected ElapsedDays=%d, got=%d", result.ReviewLog.ElapsedDays, rolledBack.ElapsedDays)
+		}
+		if rolledBack.LastReview != result.ReviewLog.Review {
+			t.Errorf("expected LastReview=%v, got=%v", result.ReviewLog.Review, rolledBack.LastReview)
+		}
+		if rolledBack.Reps != 0 {
+			t.Errorf("expected Reps=0, got=%d", rolledBack.Reps)
+		}
+		if rolledBack.Lapses != 0 {
+			t.Errorf("expected Lapses=0, got=%d", rolledBack.Lapses)
+		}
+		_ = schedulingCards
+	})
+
+	t.Run("decrements lapses on again", func(t *testing.T) {
+		card := NewCard()
+		schedulingCards := fsrs.Repeat(card, now)
+		card = schedulingCards[Good].Card
+		now = card.Due
+		schedulingCards = fsrs.Repeat(card, now)
+		card = schedulingCards[Good].Card
+		now = card.Due
+		schedulingCards = fsrs.Repeat(card, now)
+		card = schedulingCards[Again].Card
+		if card.Lapses == 0 {
+			t.Fatal("expected Lapses > 0 before rollback")
+		}
+		log := schedulingCards[Again].ReviewLog
+		rolledBack, err := fsrs.Rollback(card, log)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if rolledBack.Lapses != card.Lapses-1 {
+			t.Errorf("expected Lapses=%d, got=%d", card.Lapses-1, rolledBack.Lapses)
+		}
+		if rolledBack.Reps != card.Reps-1 {
+			t.Errorf("expected Reps=%d, got=%d", card.Reps-1, rolledBack.Reps)
+		}
+	})
+
+	t.Run("rejects manual rating", func(t *testing.T) {
+		card := NewCard()
+		log := ReviewLog{Rating: Manual}
+		_, err := fsrs.Rollback(card, log)
+		if err == nil {
+			t.Error("expected error for manual rating")
+		}
+		if !errors.Is(err, ErrManualRating) {
+			t.Errorf("expected ErrManualRating, got=%v", err)
+		}
+	})
+
+	t.Run("no underflow on zero reps", func(t *testing.T) {
+		card := NewCard()
+		result := fsrs.Next(card, now, Good)
+		rolledBack, err := fsrs.Rollback(result.Card, result.ReviewLog)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if rolledBack.Reps != 0 {
+			t.Errorf("expected Reps=0 (no underflow), got=%d", rolledBack.Reps)
+		}
+	})
+
+	t.Run("lapses unchanged for good rating", func(t *testing.T) {
+		card := NewCard()
+		result := fsrs.Next(card, now, Good)
+		rolledBack, err := fsrs.Rollback(result.Card, result.ReviewLog)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if rolledBack.Lapses != 0 {
+			t.Errorf("expected Lapses=0 (no underflow), got=%d", rolledBack.Lapses)
+		}
+	})
+
+	t.Run("preserves remaining steps from post-review card", func(t *testing.T) {
+		card := NewCard()
+		schedulingCards := fsrs.Repeat(card, now)
+		card = schedulingCards[Again].Card
+		result := fsrs.Next(card, now, Good)
+		rolledBack, err := fsrs.Rollback(result.Card, result.ReviewLog)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if rolledBack.RemainingSteps != result.Card.RemainingSteps {
+			t.Errorf("expected RemainingSteps=%d (from post-review card), got=%d", result.Card.RemainingSteps, rolledBack.RemainingSteps)
+		}
+	})
+
+	t.Run("no lapses decrement when again with zero lapses", func(t *testing.T) {
+		card := NewCard()
+		schedulingCards := fsrs.Repeat(card, now)
+		card = schedulingCards[Again].Card
+		log := schedulingCards[Again].ReviewLog
+		rolledBack, err := fsrs.Rollback(card, log)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if rolledBack.Lapses != card.Lapses {
+			t.Errorf("expected Lapses=%d (unchanged), got=%d", card.Lapses, rolledBack.Lapses)
+		}
+	})
+
+	t.Run("no lapses decrement for good with positive lapses", func(t *testing.T) {
+		card := NewCard()
+		schedulingCards := fsrs.Repeat(card, now)
+		card = schedulingCards[Good].Card
+		now = card.Due
+		schedulingCards = fsrs.Repeat(card, now)
+		card = schedulingCards[Good].Card
+		now = card.Due
+		schedulingCards = fsrs.Repeat(card, now)
+		card = schedulingCards[Again].Card
+		if card.Lapses == 0 {
+			t.Fatal("expected Lapses > 0 before rollback")
+		}
+		schedulingCards2 := fsrs.Repeat(card, now)
+		card = schedulingCards2[Good].Card
+		log := schedulingCards2[Good].ReviewLog
+		rolledBack, err := fsrs.Rollback(card, log)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if rolledBack.Lapses != card.Lapses {
+			t.Errorf("expected Lapses=%d (unchanged for Good), got=%d", card.Lapses, rolledBack.Lapses)
+		}
+	})
+
+	t.Run("reps zero on card with zero reps", func(t *testing.T) {
+		card := Card{State: Review, Reps: 0, Lapses: 0}
+		log := ReviewLog{Rating: Good, State: Review}
+		rolledBack, err := fsrs.Rollback(card, log)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if rolledBack.Reps != 0 {
+			t.Errorf("expected Reps=0, got=%d", rolledBack.Reps)
+		}
+	})
+
+	t.Run("manual rating string", func(t *testing.T) {
+		if Manual.String() != "Manual" {
+			t.Errorf("expected Manual.String()=Manual, got=%s", Manual.String())
+		}
+	})
+
+	t.Run("again on relearning decrements lapses matching ts-fsrs", func(t *testing.T) {
+		card := NewCard()
+		schedulingCards := fsrs.Repeat(card, now)
+		card = schedulingCards[Good].Card
+		now = card.Due
+		schedulingCards = fsrs.Repeat(card, now)
+		card = schedulingCards[Good].Card
+		now = card.Due
+		schedulingCards = fsrs.Repeat(card, now)
+		card = schedulingCards[Again].Card
+		if card.State != Relearning {
+			t.Fatalf("expected Relearning state, got=%v", card.State)
+		}
+		if card.Lapses == 0 {
+			t.Fatal("expected Lapses > 0")
+		}
+		schedulingCards2 := fsrs.Repeat(card, now)
+		card = schedulingCards2[Again].Card
+		log := schedulingCards2[Again].ReviewLog
+		rolledBack, err := fsrs.Rollback(card, log)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if rolledBack.Lapses != card.Lapses-1 {
+			t.Errorf("expected Lapses=%d (ts-fsrs unconditionally decrements for Again), got=%d", card.Lapses-1, rolledBack.Lapses)
+		}
+	})
+
+	t.Run("accepts out of range rating matching ts-fsrs", func(t *testing.T) {
+		card := Card{State: Review, Reps: 1}
+		log := ReviewLog{Rating: Rating(99), State: Review}
+		_, err := fsrs.Rollback(card, log)
+		if err != nil {
+			t.Errorf("ts-fsrs does not reject out-of-range ratings, got error: %v", err)
 		}
 	})
 }
