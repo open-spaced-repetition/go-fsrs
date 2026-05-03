@@ -113,7 +113,7 @@ func (bs basicScheduler) learningState(grade Rating) SchedulingInfo {
 
 	var retrievability float64
 	if interval > 0 {
-		retrievability = bs.parameters.forgettingCurve(interval, bs.last.Stability)
+		retrievability = bs.parameters.ForgettingCurve(interval, bs.last.Stability)
 	}
 	next.Stability = bs.computeLearningStability(grade, interval, retrievability)
 
@@ -190,7 +190,7 @@ func (bs basicScheduler) reviewState(grade Rating) SchedulingInfo {
 		nextEasy.Difficulty = bs.parameters.nextDifficulty(difficulty, Easy)
 		nextEasy.Stability = bs.parameters.shortTermStability(stability, Easy)
 	} else {
-		retrievability := bs.parameters.forgettingCurve(interval, stability)
+		retrievability := bs.parameters.ForgettingCurve(interval, stability)
 		bs.nextDs(&nextAgain, &nextHard, &nextGood, &nextEasy, difficulty, stability, retrievability)
 	}
 

@@ -397,13 +397,13 @@ func TestDecayAndFactorDerivedFromW20(t *testing.T) {
 	p.Decay = -0.5
 	p.Factor = math.Pow(0.9, 1.0/p.Decay) - 1.0
 
-	got := p.forgettingCurve(1, 1)
+	got := p.ForgettingCurve(1, 1)
 	wantDecay := -p.W[20]
 	wantFactor := math.Pow(0.9, 1.0/wantDecay) - 1.0
 	want := math.Pow(1+wantFactor, wantDecay)
 
 	if math.Abs(got-want) > 1e-12 {
-		t.Fatalf("forgettingCurve should use W[20], got=%v want=%v", got, want)
+		t.Fatalf("ForgettingCurve should use W[20], got=%v want=%v", got, want)
 	}
 }
 
@@ -526,7 +526,7 @@ func BenchmarkNextState(b *testing.B) {
 func BenchmarkCurrentRetrievability(b *testing.B) {
 	p := DefaultParam()
 	for b.Loop() {
-		p.forgettingCurve(21, 51.344814)
+		p.ForgettingCurve(21, 51.344814)
 	}
 }
 

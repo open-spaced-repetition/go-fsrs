@@ -97,7 +97,7 @@ func (p *Parameters) decayAndFactor() (float64, float64) {
 	return decay, factor
 }
 
-func (p *Parameters) forgettingCurve(elapsedDays float64, stability float64) float64 {
+func (p *Parameters) ForgettingCurve(elapsedDays float64, stability float64) float64 {
 	decay, factor := p.decayAndFactor()
 	stability = constrainStability(stability)
 	return math.Pow(1+factor*elapsedDays/stability, decay)
@@ -180,7 +180,7 @@ func (p *Parameters) nextStateInner(current *MemoryState, desiredRetention, elap
 		if elapsed == 0 && p.EnableShortTerm {
 			newS = p.shortTermStability(current.Stability, grade)
 		} else {
-			retrievability := p.forgettingCurve(elapsed, current.Stability)
+			retrievability := p.ForgettingCurve(elapsed, current.Stability)
 			if grade == Again {
 				newS = p.nextForgetStability(current.Difficulty, current.Stability, retrievability)
 			} else {

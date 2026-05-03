@@ -34,5 +34,5 @@ func (f *FSRS) GetRetrievability(card Card, now time.Time) float64 {
 		return 0
 	}
 	elapsedDays := math.Max(0, dateDiffRaw(card.LastReview, now))
-	return f.Parameters.forgettingCurve(elapsedDays, card.Stability)
+	return f.Parameters.ForgettingCurve(elapsedDays, card.Stability)
 }

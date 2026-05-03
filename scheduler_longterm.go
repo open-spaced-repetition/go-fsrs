@@ -66,7 +66,7 @@ func (lts longTermScheduler) reviewState(grade Rating) SchedulingInfo {
 	interval := float64(lts.current.ElapsedDays)
 	difficulty := lts.last.Difficulty
 	stability := lts.last.Stability
-	retrievability := lts.parameters.forgettingCurve(interval, stability)
+	retrievability := lts.parameters.ForgettingCurve(interval, stability)
 
 	nextAgain := lts.current
 	nextHard := lts.current
