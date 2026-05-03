@@ -96,6 +96,15 @@ type ItemState struct {
 	Interval float64     `json:"Interval"`
 }
 
+// ReviewEntry represents a single review event with a rating and elapsed days since the last review.
+type ReviewEntry struct {
+	Rating Rating  `json:"Rating"`
+	DeltaT float64 `json:"DeltaT"`
+}
+
+// ReviewEntries is a chronologically ordered sequence of ReviewEntry values.
+type ReviewEntries []ReviewEntry
+
 type NextStates struct {
 	Again ItemState `json:"Again"`
 	Hard  ItemState `json:"Hard"`
