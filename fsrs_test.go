@@ -1534,9 +1534,6 @@ func TestRollback(t *testing.T) {
 		if rolledBack.State != result.ReviewLog.State {
 			t.Errorf("expected State=%v, got=%v", result.ReviewLog.State, rolledBack.State)
 		}
-		if rolledBack.Due != result.ReviewLog.Due {
-			t.Errorf("expected Due=%v, got=%v", result.ReviewLog.Due, rolledBack.Due)
-		}
 		if rolledBack.Stability != result.ReviewLog.Stability {
 			t.Errorf("expected Stability=%v, got=%v", result.ReviewLog.Stability, rolledBack.Stability)
 		}
@@ -1549,8 +1546,11 @@ func TestRollback(t *testing.T) {
 		if rolledBack.ElapsedDays != result.ReviewLog.ElapsedDays {
 			t.Errorf("expected ElapsedDays=%d, got=%d", result.ReviewLog.ElapsedDays, rolledBack.ElapsedDays)
 		}
-		if rolledBack.LastReview != result.ReviewLog.Review {
-			t.Errorf("expected LastReview=%v, got=%v", result.ReviewLog.Review, rolledBack.LastReview)
+		if rolledBack.Due != result.ReviewLog.Due {
+			t.Errorf("expected Due=%v, got=%v", result.ReviewLog.Due, rolledBack.Due)
+		}
+		if !rolledBack.LastReview.IsZero() {
+			t.Errorf("expected LastReview zero (New state), got=%v", rolledBack.LastReview)
 		}
 		if rolledBack.Reps != 0 {
 			t.Errorf("expected Reps=0, got=%d", rolledBack.Reps)
@@ -1694,7 +1694,7 @@ func TestRollback(t *testing.T) {
 		}
 	})
 
-	t.Run("again on relearning decrements lapses matching ts-fsrs", func(t *testing.T) {
+	t.Run("again on relearning preserves lapses", func(t *testing.T) {
 		card := NewCard()
 		schedulingCards := fsrs.Repeat(card, now)
 		card = schedulingCards[Good].Card
@@ -1713,12 +1713,15 @@ func TestRollback(t *testing.T) {
 		schedulingCards2 := fsrs.Repeat(card, now)
 		card = schedulingCards2[Again].Card
 		log := schedulingCards2[Again].ReviewLog
+		if log.State != Relearning {
+			t.Fatalf("expected log State=Relearning, got=%v", log.State)
+		}
 		rolledBack, err := fsrs.Rollback(card, log)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if rolledBack.Lapses != card.Lapses-1 {
-			t.Errorf("expected Lapses=%d (ts-fsrs unconditionally decrements for Again), got=%d", card.Lapses-1, rolledBack.Lapses)
+		if rolledBack.Lapses != card.Lapses {
+			t.Errorf("expected Lapses=%d (Again on Relearning does not decrement), got=%d", card.Lapses, rolledBack.Lapses)
 		}
 	})
 
