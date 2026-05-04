@@ -36,3 +36,21 @@ func (f *FSRS) GetRetrievability(card Card, now time.Time) float64 {
 	elapsedDays := math.Max(0, dateDiffRaw(card.LastReview, now))
 	return f.Parameters.ForgettingCurve(elapsedDays, card.Stability)
 }
+
+func (f *FSRS) Forget(card Card, now time.Time, resetCount bool) SchedulingInfo {
+	forgetCard := Card{
+		Due:   now,
+		State: New,
+	}
+	if !resetCount {
+		forgetCard.Reps = card.Reps
+		forgetCard.Lapses = card.Lapses
+	}
+	log := ReviewLog{
+		Rating: Manual,
+		State:  New,
+		Due:    now,
+		Review: now,
+	}
+	return SchedulingInfo{Card: forgetCard, ReviewLog: log}
+}

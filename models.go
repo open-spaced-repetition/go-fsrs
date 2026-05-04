@@ -56,6 +56,8 @@ type RecordLog map[Rating]SchedulingInfo
 
 type Rating int8
 
+const Manual Rating = 0
+
 const (
 	Again Rating = iota + 1
 	Hard
@@ -65,6 +67,8 @@ const (
 
 func (s Rating) String() string {
 	switch s {
+	case Manual:
+		return "Manual"
 	case Again:
 		return "Again"
 	case Hard:
