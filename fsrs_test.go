@@ -1722,12 +1722,15 @@ func TestRollback(t *testing.T) {
 		}
 	})
 
-	t.Run("accepts out of range rating matching ts-fsrs", func(t *testing.T) {
+	t.Run("rejects out of range rating", func(t *testing.T) {
 		card := Card{State: Review, Reps: 1}
 		log := ReviewLog{Rating: Rating(99), State: Review}
 		_, err := fsrs.Rollback(card, log)
-		if err != nil {
-			t.Errorf("ts-fsrs does not reject out-of-range ratings, got error: %v", err)
+		if err == nil {
+			t.Error("expected error for out-of-range rating")
+		}
+		if !errors.Is(err, ErrInvalidRating) {
+			t.Errorf("expected ErrInvalidRating, got=%v", err)
 		}
 	})
 }

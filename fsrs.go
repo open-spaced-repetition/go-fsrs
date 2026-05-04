@@ -6,7 +6,10 @@ import (
 	"time"
 )
 
-var ErrManualRating = errors.New("fsrs: cannot rollback a manual rating")
+var (
+	ErrManualRating  = errors.New("fsrs: cannot rollback a manual rating")
+	ErrInvalidRating = errors.New("fsrs: invalid rating for rollback")
+)
 
 type FSRS struct {
 	Parameters
@@ -61,6 +64,9 @@ func (f *FSRS) Forget(card Card, now time.Time, resetCount bool) SchedulingInfo 
 func (f *FSRS) Rollback(card Card, log ReviewLog) (Card, error) {
 	if log.Rating == Manual {
 		return Card{}, ErrManualRating
+	}
+	if log.Rating < Again || log.Rating > Easy {
+		return Card{}, ErrInvalidRating
 	}
 	result := card
 	result.State = log.State
