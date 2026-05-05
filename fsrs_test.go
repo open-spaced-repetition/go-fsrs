@@ -1904,6 +1904,15 @@ func TestReschedule(t *testing.T) {
 		if lastLog.State != New {
 			t.Errorf("expected log State=New, got=%v", lastLog.State)
 		}
+		if !lastLog.Due.Equal(reviewTime.Add(24 * time.Hour)) {
+			t.Errorf("expected log Due=reviewed time, got=%v", lastLog.Due)
+		}
+		if lastLog.ElapsedDays != 1 {
+			t.Errorf("expected log ElapsedDays=1, got=%d", lastLog.ElapsedDays)
+		}
+		if lastLog.ScheduledDays != 0 {
+			t.Errorf("expected log ScheduledDays=0, got=%d", lastLog.ScheduledDays)
+		}
 	})
 
 	t.Run("manual rating with state New and explicit Due", func(t *testing.T) {
@@ -1925,6 +1934,28 @@ func TestReschedule(t *testing.T) {
 		}
 		if lastCard.ScheduledDays != 6 {
 			t.Errorf("expected ScheduledDays=6, got=%d", lastCard.ScheduledDays)
+		}
+	})
+
+	t.Run("manual rating with state New and Due before Review", func(t *testing.T) {
+		reviewTime := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		dueBeforeReview := time.Date(2024, 9, 10, 0, 0, 0, 0, time.UTC)
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: reviewTime},
+			{Rating: Manual, Review: reviewTime.Add(24 * time.Hour), State: StatePtr(New), Due: dueBeforeReview},
+		}
+
+		result, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		lastCard := result.Collections[1].Card
+		if !lastCard.Due.Equal(dueBeforeReview) {
+			t.Errorf("expected Due=%v, got=%v", dueBeforeReview, lastCard.Due)
+		}
+		if lastCard.ScheduledDays != 0 {
+			t.Errorf("expected ScheduledDays=0 when Due <= Review, got=%d", lastCard.ScheduledDays)
 		}
 	})
 
@@ -2106,6 +2137,26 @@ func TestReschedule(t *testing.T) {
 		}
 		if len(result.Collections) != 2 {
 			t.Errorf("expected 2 collections (Manual filtered), got %d", len(result.Collections))
+		}
+	})
+
+	t.Run("skip manual with all-Manual reviews yields empty collections", func(t *testing.T) {
+		r1 := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		r2 := time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)
+		reviews := []ReviewHistory{
+			{Rating: Manual, Review: r1, State: StatePtr(New)},
+			{Rating: Manual, Review: r2, State: StatePtr(New)},
+		}
+
+		result, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{SkipManual: true})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result.Collections) != 0 {
+			t.Errorf("expected 0 collections, got %d", len(result.Collections))
+		}
+		if result.RescheduleItem != nil {
+			t.Error("expected nil RescheduleItem with empty collections")
 		}
 	})
 
@@ -2413,6 +2464,85 @@ func TestReschedule(t *testing.T) {
 		}
 		if result.RescheduleItem.Card.Difficulty != currentCard.Difficulty {
 			t.Errorf("with UpdateMemoryState=false: expected Difficulty=%v (unchanged), got=%v", currentCard.Difficulty, result.RescheduleItem.Card.Difficulty)
+		}
+	})
+
+	t.Run("reschedule item for manual-last replay with non-New state", func(t *testing.T) {
+		r1 := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		r2 := time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)
+		manualDue := time.Date(2024, 9, 28, 0, 0, 0, 0, time.UTC)
+
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: r1},
+			{Rating: Manual, Review: r2, State: StatePtr(Review), Stability: 10.0, Difficulty: 5.0, Due: manualDue},
+		}
+
+		now := time.Date(2024, 10, 27, 0, 0, 0, 0, time.UTC)
+		currentCard := Card{Due: now, State: Review, Reps: 3, Stability: 1.0, Difficulty: 1.0}
+
+		result, err := f.Reschedule(currentCard, reviews, RescheduleOptions{
+			UpdateMemoryState: true,
+			Now:               now,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.RescheduleItem == nil {
+			t.Fatal("expected non-nil reschedule_item for manual-last replay")
+		}
+		if result.RescheduleItem.Card.State != Review {
+			t.Errorf("expected State=Review, got=%v", result.RescheduleItem.Card.State)
+		}
+		if math.Abs(result.RescheduleItem.Card.Stability-10.0) > 1e-6 {
+			t.Errorf("with UpdateMemoryState: expected Stability=10.0, got=%v", result.RescheduleItem.Card.Stability)
+		}
+		if math.Abs(result.RescheduleItem.Card.Difficulty-5.0) > 1e-6 {
+			t.Errorf("with UpdateMemoryState: expected Difficulty=5.0, got=%v", result.RescheduleItem.Card.Difficulty)
+		}
+	})
+
+	t.Run("reschedule item for manual-last New state", func(t *testing.T) {
+		r1 := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		r2 := time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)
+
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: r1},
+			{Rating: Manual, Review: r2, State: StatePtr(New)},
+		}
+
+		now := time.Date(2024, 10, 27, 0, 0, 0, 0, time.UTC)
+		currentCard := Card{Due: now, State: Review, Reps: 3, Stability: 10.0, Difficulty: 5.0}
+
+		result, err := f.Reschedule(currentCard, reviews, RescheduleOptions{
+			Now: now,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.RescheduleItem == nil {
+			t.Fatal("expected non-nil reschedule_item when current card Due differs from manual-last New card")
+		}
+		if result.RescheduleItem.Card.State != New {
+			t.Errorf("expected State=New, got=%v", result.RescheduleItem.Card.State)
+		}
+	})
+
+	t.Run("manual due before review produces zero scheduled days", func(t *testing.T) {
+		r1 := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		dueBeforeReview := time.Date(2024, 9, 10, 0, 0, 0, 0, time.UTC)
+
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: r1},
+			{Rating: Manual, Review: time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC), State: StatePtr(Review), Stability: 5.0, Difficulty: 4.0, Due: dueBeforeReview},
+		}
+
+		result, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		manualCard := result.Collections[1].Card
+		if manualCard.ScheduledDays != 0 {
+			t.Errorf("expected ScheduledDays=0 when due < review, got=%d", manualCard.ScheduledDays)
 		}
 	})
 
