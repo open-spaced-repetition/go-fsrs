@@ -5,16 +5,16 @@ import (
 )
 
 type Card struct {
-	Due             time.Time `json:"Due"`
-	Stability       float64   `json:"Stability"`
-	Difficulty      float64   `json:"Difficulty"`
-	ElapsedDays     uint64    `json:"ElapsedDays"`
-	ScheduledDays   uint64    `json:"ScheduledDays"`
-	Reps            uint64    `json:"Reps"`
-	Lapses          uint64    `json:"Lapses"`
-	State           State     `json:"State"`
-	LastReview      time.Time `json:"LastReview"`
-	RemainingSteps  int       `json:"RemainingSteps"`
+	Due            time.Time `json:"Due"`
+	Stability      float64   `json:"Stability"`
+	Difficulty     float64   `json:"Difficulty"`
+	ElapsedDays    uint64    `json:"ElapsedDays"`
+	ScheduledDays  uint64    `json:"ScheduledDays"`
+	Reps           uint64    `json:"Reps"`
+	Lapses         uint64    `json:"Lapses"`
+	State          State     `json:"State"`
+	LastReview     time.Time `json:"LastReview"`
+	RemainingSteps int       `json:"RemainingSteps"`
 }
 
 func NewCard() Card {
@@ -115,3 +115,35 @@ type NextStates struct {
 	Good  ItemState `json:"Good"`
 	Easy  ItemState `json:"Easy"`
 }
+
+// ReviewHistory represents a single past review event used to replay and
+// reconstruct card memory state via [FSRS.Reschedule].
+type ReviewHistory struct {
+	Rating        Rating
+	Review        time.Time
+	State         *State
+	Due           time.Time
+	Stability     float64
+	Difficulty    float64
+	ScheduledDays uint64
+}
+
+// RescheduleResult holds the output of [FSRS.Reschedule]: the full replay
+// history and an optional final reschedule item when the card needs updating.
+type RescheduleResult struct {
+	Collections    []SchedulingInfo
+	RescheduleItem *SchedulingInfo
+}
+
+// RescheduleOptions configures the behaviour of [FSRS.Reschedule].
+type RescheduleOptions struct {
+	SkipManual        bool
+	UpdateMemoryState bool
+	Now               time.Time
+	FirstDue          time.Time
+	SortReviews       bool
+}
+
+// StatePtr returns a pointer to the given State value. It is a convenience
+// helper for constructing [ReviewHistory] entries with a non-nil State field.
+func StatePtr(s State) *State { return &s }
