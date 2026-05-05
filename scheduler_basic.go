@@ -17,16 +17,6 @@ func (p *Parameters) NewBasicScheduler(card Card, now time.Time) *Scheduler {
 	})
 }
 
-func minutesToDuration(minutes float64) time.Duration {
-	return time.Duration(minutes * float64(time.Minute))
-}
-
-func daysToDuration(days, maxDays float64) time.Duration {
-	days = math.Min(days, maxDays)
-	hours := days * 24
-	return time.Duration(hours * float64(time.Hour))
-}
-
 func (bs basicScheduler) applyStep(next *Card, delayMinutes float64, toState State) {
 	next.Due = bs.now.Add(minutesToDuration(delayMinutes))
 	if delayMinutes >= 1440 {
