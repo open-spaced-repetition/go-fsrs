@@ -61,7 +61,11 @@ func (p *Parameters) nextInterval(s, elapsedDays float64) float64 {
 	decay, factor := p.decayAndFactor()
 	s = constrainStability(s)
 	newInterval := s / factor * (math.Pow(p.RequestRetention, 1/decay) - 1)
-	return p.ApplyFuzz(max(min(math.Round(newInterval), p.MaximumInterval), 1), elapsedDays, p.EnableFuzz)
+	ivl := max(min(math.Round(newInterval), p.MaximumInterval), 1)
+	if !p.EnableFuzz || ivl < 2.5 {
+		return ivl
+	}
+	return applyFuzz(ivl, elapsedDays, p.MaximumInterval, p.seed)
 }
 
 func (p *Parameters) nextIntervalRaw(s float64) float64 {

@@ -28,6 +28,15 @@ func (p *Parameters) ApplyFuzz(ivl float64, elapsedDays float64, enableFuzz bool
 	return math.Floor(fuzzFactor*float64(maxIvl-minIvl+1)) + float64(minIvl)
 }
 
+func applyFuzz(ivl float64, elapsedDays float64, maximumInterval float64, seed string) float64 {
+	generator := Alea(seed)
+	fuzzFactor := generator.Double()
+
+	minIvl, maxIvl := getFuzzRange(ivl, elapsedDays, maximumInterval)
+
+	return math.Floor(fuzzFactor*float64(maxIvl-minIvl+1)) + float64(minIvl)
+}
+
 func getFuzzRange(interval, elapsedDays, maximumInterval float64) (minIvl, maxIvl int) {
 	delta := 1.0
 	for _, r := range FUZZ_RANGES {

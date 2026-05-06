@@ -5,10 +5,14 @@ import (
 	"time"
 )
 
+// FSRS implements the Free Spaced Repetition Scheduler algorithm.
+// A zero-value FSRS is not usable; always construct instances with NewFSRS.
 type FSRS struct {
 	Parameters
 }
 
+// NewFSRS creates a new FSRS instance with the given parameters.
+// If the parameters are invalid (e.g., NaN weights), default weights are used.
 func NewFSRS(param Parameters) *FSRS {
 	if param.Validate() != nil {
 		param.W = DefaultWeights()
