@@ -890,14 +890,14 @@ func TestNextStateSingle(t *testing.T) {
 func TestReviewLogFields(t *testing.T) {
 	p := DefaultParam()
 	fsrs := NewFSRS(p)
-	card := NewCard()
+	card := NewCard(time.Time{})
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
 	record := fsrs.Next(card, now, Good)
 	log := record.ReviewLog
 
 	if !log.Due.IsZero() {
-		t.Errorf("ReviewLog.Due should be zero for new card (pre-review), got=%v", log.Due)
+		t.Errorf("ReviewLog.Due should be zero for new card with zero Due (pre-review), got=%v", log.Due)
 	}
 	if log.Stability != 0 {
 		t.Errorf("ReviewLog.Stability should be 0 for new card (pre-review), got=%v", log.Stability)

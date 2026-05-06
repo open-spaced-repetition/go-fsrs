@@ -17,8 +17,17 @@ type Card struct {
 	RemainingSteps int       `json:"RemainingSteps"`
 }
 
-func NewCard() Card {
-	return Card{}
+// NewCard returns a new Card with default values. If now is provided, Due is
+// set to now; otherwise Due defaults to time.Now(), aligning with ts-fsrs
+// createEmptyCard() which uses new Date() as the default.
+func NewCard(now ...time.Time) Card {
+	card := Card{}
+	if len(now) > 0 {
+		card.Due = now[0]
+	} else {
+		card.Due = time.Now()
+	}
+	return card
 }
 
 type ReviewLog struct {
