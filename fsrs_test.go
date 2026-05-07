@@ -3552,6 +3552,74 @@ func TestReschedule(t *testing.T) {
 			t.Errorf("with UpdateMemoryState: expected Difficulty=%v, got=%v", lastCard.Difficulty, result2.RescheduleItem.Card.Difficulty)
 		}
 	})
+
+	t.Run("invalid rating returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: 5, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+		}
+		_, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err == nil {
+			t.Fatal("expected error for invalid rating")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("invalid rating at index > 0 returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)},
+			{Rating: 5, Review: time.Date(2024, 9, 15, 0, 0, 0, 0, time.UTC)},
+		}
+		_, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err == nil {
+			t.Fatal("expected error for invalid rating at index 2")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("zero review time returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Time{}},
+		}
+		_, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err == nil {
+			t.Fatal("expected error for zero review time")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("zero review time at index > 0 returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Time{}},
+		}
+		_, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err == nil {
+			t.Fatal("expected error for zero review time at index 1")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("manual rating with zero review time returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Manual, Review: time.Time{}, State: StatePtr(New)},
+		}
+		_, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err == nil {
+			t.Fatal("expected error for manual rating with zero review time")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
 }
 
 func TestApplyFuzz(t *testing.T) {

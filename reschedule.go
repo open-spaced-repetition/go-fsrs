@@ -10,10 +10,32 @@ import (
 // the card's memory state. It returns the full collection of scheduling
 // decisions produced during replay and an optional reschedule item that
 // captures any change in due date relative to the original card.
-// Returns an error if a manual review entry is missing required fields.
+//
+// For graded-only histories where only the final stability and difficulty are
+// needed (without full Card/ReviewLog reconstruction), consider using
+// [FSRS.MemoryState] with [ReviewHistoryToEntries] for a lighter-weight
+// alternative.
+//
+// Returns an error if any graded review has a rating outside [Again–Easy] or a
+// zero review time, or any manual review has a zero review time, a nil State
+// field, or a zero Due when State is not New.
 func (f *FSRS) Reschedule(card Card, reviews []ReviewHistory, opts RescheduleOptions) (RescheduleResult, error) {
 	if !isValidState(card.State) {
 		return RescheduleResult{}, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid card state: %d", card.State)}
+	}
+	for i, r := range reviews {
+		if r.Rating == Manual {
+			if r.Review.IsZero() {
+				return RescheduleResult{}, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: review[%d] has zero review time", i)}
+			}
+			continue
+		}
+		if r.Rating < Again || r.Rating > Easy {
+			return RescheduleResult{}, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: review[%d] has invalid rating %d", i, r.Rating)}
+		}
+		if r.Review.IsZero() {
+			return RescheduleResult{}, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: review[%d] has zero review time", i)}
+		}
 	}
 	working := reviews
 	if opts.SortReviews {
@@ -69,10 +91,10 @@ func (f *FSRS) Reschedule(card Card, reviews []ReviewHistory, opts RescheduleOpt
 
 	var rescheduleItem *SchedulingInfo
 	if len(collections) > 0 {
-		var err2 error
-		rescheduleItem, err2 = f.calculateManualRecord(card, opts.Now, collections[len(collections)-1], opts.UpdateMemoryState)
-		if err2 != nil {
-			return RescheduleResult{}, err2
+		var err error
+		rescheduleItem, err = f.calculateManualRecord(card, opts.Now, collections[len(collections)-1], opts.UpdateMemoryState)
+		if err != nil {
+			return RescheduleResult{}, err
 		}
 	}
 
