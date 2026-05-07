@@ -1,6 +1,7 @@
 package fsrs
 
 import (
+	"fmt"
 	"sort"
 	"time"
 )
@@ -9,8 +10,30 @@ import (
 // the card's memory state. It returns the full collection of scheduling
 // decisions produced during replay and an optional reschedule item that
 // captures any change in due date relative to the original card.
-// Returns an error if a manual review entry is missing required fields.
+//
+// For graded-only histories where only the final stability and difficulty are
+// needed (without full Card/ReviewLog reconstruction), consider using
+// [FSRS.MemoryState] with [ReviewHistoryToEntries] for a lighter-weight
+// alternative.
+//
+// Returns an error if any graded review has a rating outside [Again–Easy] or a
+// zero review time, or any manual review has a zero review time, a nil State
+// field, or a zero Due when State is not New.
 func (f *FSRS) Reschedule(card Card, reviews []ReviewHistory, opts RescheduleOptions) (RescheduleResult, error) {
+	for i, r := range reviews {
+		if r.Rating == Manual {
+			if r.Review.IsZero() {
+				return RescheduleResult{}, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: review[%d] has zero review time", i)}
+			}
+			continue
+		}
+		if r.Rating < Again || r.Rating > Easy {
+			return RescheduleResult{}, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: review[%d] has invalid rating %d", i, r.Rating)}
+		}
+		if r.Review.IsZero() {
+			return RescheduleResult{}, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: review[%d] has zero review time", i)}
+		}
+	}
 	working := reviews
 	if opts.SortReviews {
 		working = make([]ReviewHistory, len(reviews))
@@ -65,7 +88,11 @@ func (f *FSRS) Reschedule(card Card, reviews []ReviewHistory, opts RescheduleOpt
 
 	var rescheduleItem *SchedulingInfo
 	if len(collections) > 0 {
-		rescheduleItem = f.calculateManualRecord(card, opts.Now, collections[len(collections)-1], opts.UpdateMemoryState)
+		var err error
+		rescheduleItem, err = f.calculateManualRecord(card, opts.Now, collections[len(collections)-1], opts.UpdateMemoryState)
+		if err != nil {
+			return RescheduleResult{}, err
+		}
 	}
 
 	return RescheduleResult{
@@ -139,11 +166,11 @@ func (f *FSRS) handleManualRating(card Card, state State, reviewed time.Time, st
 	return SchedulingInfo{Card: nextCard, ReviewLog: log}, nil
 }
 
-func (f *FSRS) calculateManualRecord(currentCard Card, now time.Time, lastItem SchedulingInfo, updateMemory bool) *SchedulingInfo {
+func (f *FSRS) calculateManualRecord(currentCard Card, now time.Time, lastItem SchedulingInfo, updateMemory bool) (*SchedulingInfo, error) {
 	rescheduleCard := lastItem.Card
 
 	if currentCard.Due.Equal(rescheduleCard.Due) {
-		return nil
+		return nil, nil
 	}
 
 	scheduledDays := dateDiffInDays(currentCard.Due, rescheduleCard.Due)
@@ -157,6 +184,9 @@ func (f *FSRS) calculateManualRecord(currentCard Card, now time.Time, lastItem S
 		diff = rescheduleCard.Difficulty
 	}
 
-	item, _ := f.handleManualRating(curCard, rescheduleCard.State, now, stab, diff, rescheduleCard.Due)
-	return &item
+	item, err := f.handleManualRating(curCard, rescheduleCard.State, now, stab, diff, rescheduleCard.Due)
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
 }
