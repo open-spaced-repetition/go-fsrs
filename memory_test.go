@@ -1,6 +1,7 @@
 package fsrs
 
 import (
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -470,5 +471,194 @@ func BenchmarkMemoryState(b *testing.B) {
 	}
 	for b.Loop() {
 		f.MemoryState(history, nil)
+	}
+}
+
+func TestReviewHistoryToEntries(t *testing.T) {
+	t.Run("basic conversion", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 17, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 28, 0, 0, 0, 0, time.UTC)},
+		}
+
+		entries, err := ReviewHistoryToEntries(reviews)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(entries) != 4 {
+			t.Fatalf("expected 4 entries, got %d", len(entries))
+		}
+
+		wantDeltaT := []float64{0, 0, 4, 11}
+		for i, want := range wantDeltaT {
+			if entries[i].DeltaT != want {
+				t.Errorf("entry[%d]: DeltaT=%.1f, want=%.1f", i, entries[i].DeltaT, want)
+			}
+			if entries[i].Rating != Good {
+				t.Errorf("entry[%d]: Rating=%v, want=Good", i, entries[i].Rating)
+			}
+		}
+	})
+
+	t.Run("empty returns error", func(t *testing.T) {
+		_, err := ReviewHistoryToEntries(nil)
+		if err == nil {
+			t.Fatal("expected error for empty input")
+		}
+	})
+
+	t.Run("manual rating returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Manual, Review: time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC), State: StatePtr(New)},
+		}
+		_, err := ReviewHistoryToEntries(reviews)
+		if err == nil {
+			t.Fatal("expected error for Manual rating")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("manual rating at index 0 returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Manual, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC), State: StatePtr(New)},
+		}
+		_, err := ReviewHistoryToEntries(reviews)
+		if err == nil {
+			t.Fatal("expected error for Manual rating at index 0")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("invalid rating returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: 5, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+		}
+		_, err := ReviewHistoryToEntries(reviews)
+		if err == nil {
+			t.Fatal("expected error for invalid rating")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("invalid rating at index > 0 returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)},
+			{Rating: 5, Review: time.Date(2024, 9, 15, 0, 0, 0, 0, time.UTC)},
+		}
+		_, err := ReviewHistoryToEntries(reviews)
+		if err == nil {
+			t.Fatal("expected error for invalid rating at index 2")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("zero review time returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Time{}},
+		}
+		_, err := ReviewHistoryToEntries(reviews)
+		if err == nil {
+			t.Fatal("expected error for zero review time")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("zero review time at index > 0 returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Time{}},
+		}
+		_, err := ReviewHistoryToEntries(reviews)
+		if err == nil {
+			t.Fatal("expected error for zero review time at index 1")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("negative delta_t returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 20, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+		}
+		_, err := ReviewHistoryToEntries(reviews)
+		if err == nil {
+			t.Fatal("expected error for negative delta_t")
+		}
+	})
+
+	t.Run("mixed ratings", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Again, Review: time.Date(2024, 9, 10, 0, 0, 0, 0, time.UTC)},
+			{Rating: Hard, Review: time.Date(2024, 9, 11, 0, 0, 0, 0, time.UTC)},
+			{Rating: Easy, Review: time.Date(2024, 9, 15, 0, 0, 0, 0, time.UTC)},
+		}
+		entries, err := ReviewHistoryToEntries(reviews)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		wantRatings := []Rating{Again, Hard, Easy}
+		wantDeltaT := []float64{0, 1, 4}
+		for i, want := range wantRatings {
+			if entries[i].Rating != want {
+				t.Errorf("entry[%d]: Rating=%v, want=%v", i, entries[i].Rating, want)
+			}
+			if entries[i].DeltaT != wantDeltaT[i] {
+				t.Errorf("entry[%d]: DeltaT=%.1f, want=%.1f", i, entries[i].DeltaT, wantDeltaT[i])
+			}
+		}
+	})
+}
+
+func TestReviewHistoryToEntriesMatchesReschedule(t *testing.T) {
+	f := NewFSRS(DefaultParam())
+
+	reviewTimes := []time.Time{
+		time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 9, 17, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 9, 28, 0, 0, 0, 0, time.UTC),
+	}
+	reviews := make([]ReviewHistory, len(reviewTimes))
+	for i, rt := range reviewTimes {
+		reviews[i] = ReviewHistory{Rating: Good, Review: rt}
+	}
+
+	result, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+	if err != nil {
+		t.Fatalf("Reschedule error: %v", err)
+	}
+	lastCard := result.Collections[len(result.Collections)-1].Card
+
+	entries, err := ReviewHistoryToEntries(reviews)
+	if err != nil {
+		t.Fatalf("ReviewHistoryToEntries error: %v", err)
+	}
+
+	memState, err := f.MemoryState(entries, nil)
+	if err != nil {
+		t.Fatalf("MemoryState error: %v", err)
+	}
+
+	if math.Abs(lastCard.Stability-memState.Stability) > 1e-6 {
+		t.Errorf("stability mismatch: Reschedule=%.10f, MemoryState=%.10f", lastCard.Stability, memState.Stability)
+	}
+	if math.Abs(lastCard.Difficulty-memState.Difficulty) > 1e-6 {
+		t.Errorf("difficulty mismatch: Reschedule=%.10f, MemoryState=%.10f", lastCard.Difficulty, memState.Difficulty)
 	}
 }
