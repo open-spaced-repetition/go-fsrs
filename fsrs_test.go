@@ -20,7 +20,10 @@ func TestBasicSchedulerExample(t *testing.T) {
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 	var ivlList []uint64
 	var stateList []State
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	var ratings = []Rating{Good, Good, Good, Good, Good, Good, Again, Again, Good, Good, Good, Good, Good}
 	var rating Rating
@@ -33,7 +36,10 @@ func TestBasicSchedulerExample(t *testing.T) {
 		revlog = schedulingCards[rating].ReviewLog
 		stateList = append(stateList, revlog.State)
 		now = card.Due
-		schedulingCards = fsrs.Repeat(card, now)
+		schedulingCards, err = fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 	}
 
 	wantIvlList := []uint64{0, 2, 11, 46, 163, 498, 0, 0, 2, 4, 7, 12, 21}
@@ -51,7 +57,10 @@ func TestBasicSchedulerMemoState(t *testing.T) {
 	fsrs := NewFSRS(p)
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	var ratings = []Rating{Again, Good, Good, Good, Good, Good}
 	var ivlList = []uint64{0, 0, 1, 3, 8, 21}
 	var rating Rating
@@ -59,7 +68,10 @@ func TestBasicSchedulerMemoState(t *testing.T) {
 		rating = ratings[i]
 		card = schedulingCards[rating].Card
 		now = now.Add(time.Duration(ivlList[i]) * 24 * time.Hour)
-		schedulingCards = fsrs.Repeat(card, now)
+		schedulingCards, err = fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 	}
 	wantStability := 54.0393
 	cardStability := roundFloat(schedulingCards[Good].Card.Stability, 4)
@@ -260,8 +272,15 @@ func TestLongTermScheduler(t *testing.T) {
 	sHistory := []float64{}
 	dHistory := []float64{}
 	for _, rating := range ratings {
-		record := fsrs.Repeat(card, now)[rating]
-		next := fsrs.Next(card, now, rating)
+		schedCards, err := fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		record := schedCards[rating]
+		next, err := fsrs.Next(card, now, rating)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if !reflect.DeepEqual(record.Card, next.Card) {
 			t.Errorf("expected:%v, got:%v", record.Card, next.Card)
 		}
@@ -715,11 +734,25 @@ func TestGetRetrievability(t *testing.T) {
 	fsrs := NewFSRS(DefaultParam())
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
-	retrievabilityList = append(retrievabilityList, roundFloat(fsrs.GetRetrievability(card, now), 4))
+	r, err := fsrs.GetRetrievability(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	retrievabilityList = append(retrievabilityList, roundFloat(r, 4))
 	for range 3 {
-		card = fsrs.Next(card, now, Good).Card
+		{
+			rec, err := fsrs.Next(card, now, Good)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			card = rec.Card
+		}
 		now = card.Due
-		retrievabilityList = append(retrievabilityList, roundFloat(fsrs.GetRetrievability(card, now), 4))
+		r, err := fsrs.GetRetrievability(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		retrievabilityList = append(retrievabilityList, roundFloat(r, 4))
 	}
 	wantRetrievabilityList := []float64{0, 1, 0.9095, 0.8998}
 	if !reflect.DeepEqual(retrievabilityList, wantRetrievabilityList) {
@@ -763,7 +796,10 @@ func TestGetRetrievabilityRawVsCalendar(t *testing.T) {
 
 	now := time.Date(2032, 1, 16, 1, 0, 0, 0, time.UTC)
 
-	r := f.GetRetrievability(card, now)
+	r, err := f.GetRetrievability(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if r != 1.0 {
 		t.Errorf("GetRetrievability(midnight crossover, 2h) = %v, want 1.0 (t=0, no decay)", r)
 	}
@@ -780,7 +816,7 @@ func TestGetRetrievabilityReversedDates(t *testing.T) {
 
 	now := time.Date(2032, 1, 15, 12, 0, 0, 0, time.UTC)
 
-	r := f.GetRetrievability(card, now)
+	r, _ := f.GetRetrievability(card, now)
 	if r != 1.0 {
 		t.Errorf("GetRetrievability(reversed dates) = %v, want 1.0 (t clamped to 0)", r)
 	}
@@ -839,7 +875,7 @@ func BenchmarkRepeat(b *testing.B) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 	for b.Loop() {
-		f.Repeat(card, now)
+		_, _ = f.Repeat(card, now)
 	}
 }
 
@@ -848,10 +884,10 @@ func BenchmarkNext(b *testing.B) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 	for b.Loop() {
-		f.Next(card, now, Good)
-		f.Next(card, now, Hard)
-		f.Next(card, now, Easy)
-		f.Next(card, now, Again)
+		_, _ = f.Next(card, now, Good)
+		_, _ = f.Next(card, now, Hard)
+		_, _ = f.Next(card, now, Easy)
+		_, _ = f.Next(card, now, Again)
 	}
 }
 
@@ -859,9 +895,15 @@ func BenchmarkGetRetrievability(b *testing.B) {
 	f := NewFSRS(DefaultParam())
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
-	card = f.Next(card, now, Good).Card
+	{
+		rec, err := f.Next(card, now, Good)
+		if err != nil {
+			b.Fatalf("unexpected error: %v", err)
+		}
+		card = rec.Card
+	}
 	for b.Loop() {
-		f.GetRetrievability(card, now)
+		_, _ = f.GetRetrievability(card, now)
 	}
 }
 
@@ -872,7 +914,11 @@ func BenchmarkBasicSchedulerFullSequence(b *testing.B) {
 		card := NewCard()
 		now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 		for _, rating := range ratings {
-			record := f.Repeat(card, now)[rating]
+			schedCards, err := f.Repeat(card, now)
+			if err != nil {
+				b.Fatalf("unexpected error: %v", err)
+			}
+			record := schedCards[rating]
 			card = record.Card
 			now = card.Due
 		}
@@ -888,7 +934,11 @@ func BenchmarkLongTermSchedulerFullSequence(b *testing.B) {
 		card := NewCard()
 		now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 		for _, rating := range ratings {
-			record := f.Repeat(card, now)[rating]
+			schedCards2, err := f.Repeat(card, now)
+			if err != nil {
+				b.Fatalf("unexpected error: %v", err)
+			}
+			record := schedCards2[rating]
 			card = record.Card
 			now = card.Due
 		}
@@ -970,7 +1020,10 @@ func TestNewStateStepBased(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	againCard := schedulingCards[Again].Card
 	if againCard.State != Learning {
@@ -1011,11 +1064,17 @@ func TestLearningStateThresholdBranching(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	againCard := schedulingCards[Again].Card
 	now = againCard.Due
-	schedulingCards = fsrs.Repeat(againCard, now)
+	schedulingCards, err = fsrs.Repeat(againCard, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	againAgainCard := schedulingCards[Again].Card
 	if againAgainCard.State != Learning {
@@ -1047,10 +1106,16 @@ func TestLearningStateEasyConstraintWhenGoodGraduates(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	againCard := schedulingCards[Again].Card
 	now = againCard.Due
-	schedulingCards = fsrs.Repeat(againCard, now)
+	schedulingCards, err = fsrs.Repeat(againCard, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	goodInterval := schedulingCards[Good].Card.ScheduledDays
 	easyInterval := schedulingCards[Easy].Card.ScheduledDays
@@ -1067,12 +1132,27 @@ func TestReviewStateAgainAlwaysRelearning(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	card = fsrs.Next(card, now, Good).Card
+	{
+		rec, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		card = rec.Card
+	}
 	now = card.Due
-	card = fsrs.Next(card, now, Good).Card
+	{
+		rec, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		card = rec.Card
+	}
 	now = card.Due
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	againCard := schedulingCards[Again].Card
 
 	if againCard.State != Relearning {
@@ -1138,15 +1218,24 @@ func TestLearningStateRecallStabilityWhenElapsedDays(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	againCard := schedulingCards[Again].Card
 
-	schedulingCards0 := fsrs.Repeat(againCard, againCard.Due)
+	schedulingCards0, err := fsrs.Repeat(againCard, againCard.Due)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	goodCardImmediate := schedulingCards0[Good].Card
 	stabilityImmediate := goodCardImmediate.Stability
 
 	twoDaysLater := now.Add(2 * 24 * time.Hour)
-	schedulingCards2 := fsrs.Repeat(againCard, twoDaysLater)
+	schedulingCards2, err := fsrs.Repeat(againCard, twoDaysLater)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	goodCardDelayed := schedulingCards2[Good].Card
 	stabilityDelayed := goodCardDelayed.Stability
 
@@ -1162,11 +1251,17 @@ func TestLearningStateHardAndEasyWithElapsedDays(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	againCard := schedulingCards[Again].Card
 
 	twoDaysLater := now.Add(2 * 24 * time.Hour)
-	schedulingCards2 := fsrs.Repeat(againCard, twoDaysLater)
+	schedulingCards2, err := fsrs.Repeat(againCard, twoDaysLater)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	hardCardDelayed := schedulingCards2[Hard].Card
 	if hardCardDelayed.Stability <= againCard.Stability {
@@ -1193,7 +1288,10 @@ func TestThreeStepProgression(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	goodCard := schedulingCards[Good].Card
 	if goodCard.State != Learning {
@@ -1208,7 +1306,10 @@ func TestThreeStepProgression(t *testing.T) {
 	}
 
 	now = goodCard.Due
-	schedulingCards = fsrs.Repeat(goodCard, now)
+	schedulingCards, err = fsrs.Repeat(goodCard, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	goodCard2 := schedulingCards[Good].Card
 	if goodCard2.State != Learning {
 		t.Errorf("Good at RS=2 should stay Learning, got=%v", goodCard2.State)
@@ -1222,7 +1323,10 @@ func TestThreeStepProgression(t *testing.T) {
 	}
 
 	now = goodCard2.Due
-	schedulingCards = fsrs.Repeat(goodCard2, now)
+	schedulingCards, err = fsrs.Repeat(goodCard2, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	goodCard3 := schedulingCards[Good].Card
 	if goodCard3.State != Review {
 		t.Errorf("Good at RS=1 should graduate, got=%v", goodCard3.State)
@@ -1236,7 +1340,10 @@ func TestEmptyLearningStepsAllGraduate(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	for _, rating := range []Rating{Again, Hard, Good, Easy} {
 		c := schedulingCards[rating].Card
 		if c.State != Review {
@@ -1277,11 +1384,17 @@ func TestGoodAfterAgainAdvancesStep(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	againCard := schedulingCards[Again].Card
 
 	now = againCard.Due
-	schedulingCards = fsrs.Repeat(againCard, now)
+	schedulingCards, err = fsrs.Repeat(againCard, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	goodCard := schedulingCards[Good].Card
 
 	expectedDue := now.Add(minutesToDuration(10))
@@ -1316,7 +1429,10 @@ func TestReviewLogFields(t *testing.T) {
 		card := NewCard(time.Time{})
 		now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-		record := fsrs.Next(card, now, Good)
+		record, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		log := record.ReviewLog
 
 		if !log.Due.IsZero() {
@@ -1339,7 +1455,10 @@ func TestReviewLogFields(t *testing.T) {
 		cardDue := card.Due
 		now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-		record := fsrs.Next(card, now, Good)
+		record, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		log := record.ReviewLog
 
 		if log.Due.IsZero() {
@@ -1355,11 +1474,17 @@ func TestReviewLogFields(t *testing.T) {
 		card := NewCard(time.Time{})
 		now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-		record := fsrs.Next(card, now, Good)
+		record, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = record.Card
 		previousLastReview := card.LastReview
 		now = card.Due
-		record = fsrs.Next(card, now, Good)
+		record, err = fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		log := record.ReviewLog
 
 		if log.Due != previousLastReview {
@@ -1382,7 +1507,10 @@ func TestReviewLogFields(t *testing.T) {
 		card := NewCard(specificTime)
 		now := time.Date(2024, 3, 10, 12, 0, 0, 0, time.UTC)
 
-		record := fsrs.Next(card, now, Good)
+		record, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		log := record.ReviewLog
 
 		if log.Due != specificTime {
@@ -1398,12 +1526,27 @@ func TestReviewStateAgainWithEmptyRelearningSteps(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	card = fsrs.Next(card, now, Good).Card
+	{
+		rec, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		card = rec.Card
+	}
 	now = card.Due
-	card = fsrs.Next(card, now, Good).Card
+	{
+		rec, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		card = rec.Card
+	}
 	now = card.Due
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	againCard := schedulingCards[Again].Card
 
 	if againCard.State != Review {
@@ -1428,7 +1571,10 @@ func TestLearningStateRemainingZero(t *testing.T) {
 	card.LastReview = time.Date(2022, 11, 29, 12, 0, 0, 0, time.UTC)
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	for _, rating := range []Rating{Again, Hard, Good} {
 		c := schedulingCards[rating].Card
 		if c.State != Review {
@@ -1444,12 +1590,27 @@ func TestRelearningStepProgression(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	card = fsrs.Next(card, now, Good).Card
+	{
+		rec, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		card = rec.Card
+	}
 	now = card.Due
-	card = fsrs.Next(card, now, Good).Card
+	{
+		rec, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		card = rec.Card
+	}
 	now = card.Due
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	againCard := schedulingCards[Again].Card
 	if againCard.State != Relearning {
 		t.Errorf("Again on review card should go to Relearning, got=%v", againCard.State)
@@ -1459,7 +1620,10 @@ func TestRelearningStepProgression(t *testing.T) {
 	}
 
 	now = againCard.Due
-	schedulingCards = fsrs.Repeat(againCard, now)
+	schedulingCards, err = fsrs.Repeat(againCard, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	goodCard := schedulingCards[Good].Card
 	if goodCard.State != Relearning {
 		t.Errorf("Good at RS=2 should stay Relearning (step 1 of 2), got=%v", goodCard.State)
@@ -1473,7 +1637,10 @@ func TestRelearningStepProgression(t *testing.T) {
 	}
 
 	now = goodCard.Due
-	schedulingCards = fsrs.Repeat(goodCard, now)
+	schedulingCards, err = fsrs.Repeat(goodCard, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	goodCard2 := schedulingCards[Good].Card
 	if goodCard2.State != Review {
 		t.Errorf("Good at RS=1 should graduate to Review, got=%v", goodCard2.State)
@@ -1491,11 +1658,26 @@ func TestReviewStateZeroInterval(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	card = fsrs.Next(card, now, Good).Card
-	card = fsrs.Next(card, now, Good).Card
+	{
+		rec, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		card = rec.Card
+	}
+	{
+		rec, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		card = rec.Card
+	}
 	card.State = Review
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	againCard := schedulingCards[Again].Card
 	if againCard.Stability == 0 {
 		t.Errorf("Again with ElapsedDays=0 should use shortTermStability, got stability=0")
@@ -1608,7 +1790,10 @@ func TestReviewLogAllRatings(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	for _, rating := range []Rating{Again, Hard, Good, Easy} {
 		log := schedulingCards[rating].ReviewLog
 		if log.Rating != rating {
@@ -1632,7 +1817,10 @@ func TestReviewLogAllRatings(t *testing.T) {
 	}
 
 	learningCard := schedulingCards[Good].Card
-	schedulingCards2 := fsrs.Repeat(learningCard, learningCard.Due)
+	schedulingCards2, err := fsrs.Repeat(learningCard, learningCard.Due)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	for _, rating := range []Rating{Again, Hard, Good, Easy} {
 		log := schedulingCards2[rating].ReviewLog
 		if log.Rating != rating {
@@ -1654,14 +1842,20 @@ func TestLearningStateHardRemainingStepsInvariant(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	againCard := schedulingCards[Again].Card
 	if againCard.RemainingSteps != 3 {
 		t.Errorf("Again should have RS=3, got=%d", againCard.RemainingSteps)
 	}
 
 	now = againCard.Due
-	schedulingCards = fsrs.Repeat(againCard, now)
+	schedulingCards, err = fsrs.Repeat(againCard, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	hardCard := schedulingCards[Hard].Card
 	if hardCard.RemainingSteps != 3 {
 		t.Errorf("Hard should keep RS unchanged (3), got=%d", hardCard.RemainingSteps)
@@ -1675,14 +1869,20 @@ func TestLearningStateAgainResetsRemainingSteps(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	goodCard := schedulingCards[Good].Card
 	if goodCard.RemainingSteps != 2 {
 		t.Errorf("Good should have RS=2, got=%d", goodCard.RemainingSteps)
 	}
 
 	now = goodCard.Due
-	schedulingCards = fsrs.Repeat(goodCard, now)
+	schedulingCards, err = fsrs.Repeat(goodCard, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	againCard := schedulingCards[Again].Card
 	if againCard.RemainingSteps != 3 {
 		t.Errorf("Again should reset RS to full length (3), got=%d", againCard.RemainingSteps)
@@ -1696,7 +1896,10 @@ func TestHardDelayMinutesIntegration(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	hardCard := schedulingCards[Hard].Card
 	if hardCard.State != Learning {
 		t.Errorf("Hard should be Learning, got=%v", hardCard.State)
@@ -1712,7 +1915,10 @@ func TestHardDelayMinutesIntegration(t *testing.T) {
 
 	againCard := schedulingCards[Again].Card
 	now = againCard.Due
-	schedulingCards = fsrs.Repeat(againCard, now)
+	schedulingCards, err = fsrs.Repeat(againCard, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	hardCard2 := schedulingCards[Hard].Card
 	if hardCard2.Due.Sub(now.Add(minutesToDuration(expectedHardDelay))).Abs() > time.Second {
 		t.Errorf("Hard in learningState should also match hardDelayMinutes: due=%v", hardCard2.Due)
@@ -1726,7 +1932,10 @@ func TestDayScaleSteps(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	goodCard := schedulingCards[Good].Card
 	if goodCard.State != Learning {
@@ -1740,7 +1949,10 @@ func TestDayScaleSteps(t *testing.T) {
 	}
 
 	now = goodCard.Due
-	schedulingCards = fsrs.Repeat(goodCard, now)
+	schedulingCards, err = fsrs.Repeat(goodCard, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	goodCard2 := schedulingCards[Good].Card
 	if goodCard2.State != Review {
 		t.Errorf("Good step 2 (1440min) should graduate to Review, got=%v", goodCard2.State)
@@ -1769,12 +1981,27 @@ func TestDayScaleStepRelearning(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	card = fsrs.Next(card, now, Good).Card
+	{
+		rec, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		card = rec.Card
+	}
 	now = card.Due
-	card = fsrs.Next(card, now, Good).Card
+	{
+		rec, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		card = rec.Card
+	}
 	now = card.Due
 
-	schedulingCards := fsrs.Repeat(card, now)
+	schedulingCards, err := fsrs.Repeat(card, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	againCard := schedulingCards[Again].Card
 	if againCard.State != Review {
 		t.Errorf("Again with 1440min relearning step should graduate to Review, got=%v", againCard.State)
@@ -1795,7 +2022,10 @@ func TestForget(t *testing.T) {
 
 	ratings := []Rating{Good, Good, Good}
 	for _, r := range ratings {
-		schedulingCards := fsrs.Repeat(card, now)
+		schedulingCards, err := fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = schedulingCards[r].Card
 		now = card.Due
 	}
@@ -1938,7 +2168,10 @@ func TestForget(t *testing.T) {
 	})
 
 	t.Run("review state card", func(t *testing.T) {
-		schedulingCards := fsrs.Repeat(NewCard(), time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC))
+		schedulingCards, err := fsrs.Repeat(NewCard(), time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		reviewCard := schedulingCards[Good].Card
 		if reviewCard.State != Learning && reviewCard.State != Review {
 			t.Fatalf("expected Learning or Review, got=%v", reviewCard.State)
@@ -1987,8 +2220,14 @@ func TestRollback(t *testing.T) {
 
 	t.Run("restores card after good review", func(t *testing.T) {
 		card := NewCard()
-		schedulingCards := fsrs.Repeat(card, now)
-		result := fsrs.Next(card, now, Good)
+		schedulingCards, err := fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		result, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		rolledBack, err := fsrs.Rollback(result.Card, result.ReviewLog)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -2025,13 +2264,22 @@ func TestRollback(t *testing.T) {
 
 	t.Run("decrements lapses on again", func(t *testing.T) {
 		card := NewCard()
-		schedulingCards := fsrs.Repeat(card, now)
+		schedulingCards, err := fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = schedulingCards[Good].Card
 		now = card.Due
-		schedulingCards = fsrs.Repeat(card, now)
+		schedulingCards, err = fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = schedulingCards[Good].Card
 		now = card.Due
-		schedulingCards = fsrs.Repeat(card, now)
+		schedulingCards, err = fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = schedulingCards[Again].Card
 		if card.Lapses == 0 {
 			t.Fatal("expected Lapses > 0 before rollback")
@@ -2063,7 +2311,10 @@ func TestRollback(t *testing.T) {
 
 	t.Run("no underflow on zero reps", func(t *testing.T) {
 		card := NewCard()
-		result := fsrs.Next(card, now, Good)
+		result, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		rolledBack, err := fsrs.Rollback(result.Card, result.ReviewLog)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -2075,7 +2326,10 @@ func TestRollback(t *testing.T) {
 
 	t.Run("lapses unchanged for good rating", func(t *testing.T) {
 		card := NewCard()
-		result := fsrs.Next(card, now, Good)
+		result, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		rolledBack, err := fsrs.Rollback(result.Card, result.ReviewLog)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -2087,9 +2341,15 @@ func TestRollback(t *testing.T) {
 
 	t.Run("preserves remaining steps from post-review card", func(t *testing.T) {
 		card := NewCard()
-		schedulingCards := fsrs.Repeat(card, now)
+		schedulingCards, err := fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = schedulingCards[Again].Card
-		result := fsrs.Next(card, now, Good)
+		result, err := fsrs.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		rolledBack, err := fsrs.Rollback(result.Card, result.ReviewLog)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -2101,7 +2361,10 @@ func TestRollback(t *testing.T) {
 
 	t.Run("no lapses decrement when again with zero lapses", func(t *testing.T) {
 		card := NewCard()
-		schedulingCards := fsrs.Repeat(card, now)
+		schedulingCards, err := fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = schedulingCards[Again].Card
 		log := schedulingCards[Again].ReviewLog
 		rolledBack, err := fsrs.Rollback(card, log)
@@ -2115,18 +2378,27 @@ func TestRollback(t *testing.T) {
 
 	t.Run("no lapses decrement for good with positive lapses", func(t *testing.T) {
 		card := NewCard()
-		schedulingCards := fsrs.Repeat(card, now)
+		schedulingCards, err := fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = schedulingCards[Good].Card
 		now = card.Due
-		schedulingCards = fsrs.Repeat(card, now)
+		schedulingCards, err = fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = schedulingCards[Good].Card
 		now = card.Due
-		schedulingCards = fsrs.Repeat(card, now)
+		schedulingCards, err = fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = schedulingCards[Again].Card
 		if card.Lapses == 0 {
 			t.Fatal("expected Lapses > 0 before rollback")
 		}
-		schedulingCards2 := fsrs.Repeat(card, now)
+		schedulingCards2, err := fsrs.Repeat(card, now)
 		card = schedulingCards2[Good].Card
 		log := schedulingCards2[Good].ReviewLog
 		rolledBack, err := fsrs.Rollback(card, log)
@@ -2158,13 +2430,22 @@ func TestRollback(t *testing.T) {
 
 	t.Run("again on relearning preserves lapses", func(t *testing.T) {
 		card := NewCard()
-		schedulingCards := fsrs.Repeat(card, now)
+		schedulingCards, err := fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = schedulingCards[Good].Card
 		now = card.Due
-		schedulingCards = fsrs.Repeat(card, now)
+		schedulingCards, err = fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = schedulingCards[Good].Card
 		now = card.Due
-		schedulingCards = fsrs.Repeat(card, now)
+		schedulingCards, err = fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = schedulingCards[Again].Card
 		if card.State != Relearning {
 			t.Fatalf("expected Relearning state, got=%v", card.State)
@@ -2172,7 +2453,10 @@ func TestRollback(t *testing.T) {
 		if card.Lapses == 0 {
 			t.Fatal("expected Lapses > 0")
 		}
-		schedulingCards2 := fsrs.Repeat(card, now)
+		schedulingCards2, err := fsrs.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		card = schedulingCards2[Again].Card
 		log := schedulingCards2[Again].ReviewLog
 		if log.State != Relearning {
@@ -2226,7 +2510,10 @@ func TestReschedule(t *testing.T) {
 
 		curCard := Card{Due: card.Due}
 		for i, review := range reviews {
-			direct := f.Next(curCard, review.Review, review.Rating)
+			direct, err := f.Next(curCard, review.Review, review.Rating)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if !reflect.DeepEqual(result.Collections[i].Card, direct.Card) {
 				t.Errorf("review %d: reschedule card mismatch\n  got:  %+v\n  want: %+v", i, result.Collections[i].Card, direct.Card)
 			}
@@ -2701,7 +2988,10 @@ func TestReschedule(t *testing.T) {
 		var currentCard Card
 		var historyCards []Card
 		for _, review := range reviews {
-			item := f.Next(currentCard, review.Review, review.Rating)
+				item, err := f.Next(currentCard, review.Review, review.Rating)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			currentCard = item.Card
 			historyCards = append(historyCards, currentCard)
 		}
@@ -3236,6 +3526,803 @@ func TestErrorType(t *testing.T) {
 		}
 		if ErrManualDueRequired.Code != ErrCodeManualDueRequired {
 			t.Errorf("ErrManualDueRequired.Code=%v, want ErrCodeManualDueRequired=%v", ErrManualDueRequired.Code, ErrCodeManualDueRequired)
+		}
+	})
+}
+
+func TestNextInputValidation(t *testing.T) {
+	f := NewFSRS(DefaultParam())
+	card := NewCard(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+	now := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	t.Run("Manual grade returns error", func(t *testing.T) {
+		_, err := f.Next(card, now, Manual)
+		if err == nil {
+			t.Fatal("expected error for Manual grade")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("out of range grade returns error", func(t *testing.T) {
+		_, err := f.Next(card, now, Rating(5))
+		if err == nil {
+			t.Fatal("expected error for grade 5")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("invalid card state returns error", func(t *testing.T) {
+		badCard := card
+		badCard.State = State(42)
+		_, err := f.Next(badCard, now, Good)
+		if err == nil {
+			t.Fatal("expected error for invalid state")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("NaN stability for non-New card returns error", func(t *testing.T) {
+		badCard := card
+		badCard.State = Review
+		badCard.Stability = math.NaN()
+		badCard.Difficulty = 5.0
+		_, err := f.Next(badCard, now, Good)
+		if err == nil {
+			t.Fatal("expected error for NaN stability")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("zero stability for non-New card returns error", func(t *testing.T) {
+		badCard := card
+		badCard.State = Review
+		badCard.Stability = 0
+		badCard.Difficulty = 5.0
+		_, err := f.Next(badCard, now, Good)
+		if err == nil {
+			t.Fatal("expected error for zero stability on Review card")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("Inf difficulty for non-New card returns error", func(t *testing.T) {
+		badCard := card
+		badCard.State = Learning
+		badCard.Stability = 1.0
+		badCard.Difficulty = math.Inf(1)
+		_, err := f.Next(badCard, now, Good)
+		if err == nil {
+			t.Fatal("expected error for Inf difficulty")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("difficulty below dMin for non-New card returns error", func(t *testing.T) {
+		badCard := card
+		badCard.State = Review
+		badCard.Stability = 5.0
+		badCard.Difficulty = 0.5
+		_, err := f.Next(badCard, now, Good)
+		if err == nil {
+			t.Fatal("expected error for difficulty below dMin")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("LastReview after now returns error", func(t *testing.T) {
+		badCard := card
+		badCard.State = Review
+		badCard.Stability = 10.0
+		badCard.Difficulty = 5.0
+		badCard.LastReview = time.Date(2024, 1, 3, 0, 0, 0, 0, time.UTC)
+		_, err := f.Next(badCard, now, Good)
+		if err == nil {
+			t.Fatal("expected error for future LastReview")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("valid New card succeeds", func(t *testing.T) {
+		_, err := f.Next(card, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("valid Review card succeeds", func(t *testing.T) {
+		reviewCard := card
+		reviewCard.State = Review
+		reviewCard.Stability = 10.0
+		reviewCard.Difficulty = 5.0
+		reviewCard.LastReview = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		_, err := f.Next(reviewCard, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("valid Learning card succeeds", func(t *testing.T) {
+		learningCard := card
+		learningCard.State = Learning
+		learningCard.Stability = 2.0
+		learningCard.Difficulty = 5.0
+		learningCard.LastReview = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		_, err := f.Next(learningCard, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("valid Relearning card succeeds", func(t *testing.T) {
+		relearningCard := card
+		relearningCard.State = Relearning
+		relearningCard.Stability = 2.0
+		relearningCard.Difficulty = 5.0
+		relearningCard.LastReview = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		_, err := f.Next(relearningCard, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("negative stability for non-New card returns error", func(t *testing.T) {
+		badCard := card
+		badCard.State = Review
+		badCard.Stability = -5.0
+		badCard.Difficulty = 5.0
+		_, err := f.Next(badCard, now, Good)
+		if err == nil {
+			t.Fatal("expected error for negative stability")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("stability in (0, sMin) for non-New card returns error", func(t *testing.T) {
+		badCard := card
+		badCard.State = Review
+		badCard.Stability = 0.0005
+		badCard.Difficulty = 5.0
+		_, err := f.Next(badCard, now, Good)
+		if err == nil {
+			t.Fatal("expected error for stability below sMin")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("negative difficulty for non-New card returns error", func(t *testing.T) {
+		badCard := card
+		badCard.State = Review
+		badCard.Stability = 5.0
+		badCard.Difficulty = -1.0
+		_, err := f.Next(badCard, now, Good)
+		if err == nil {
+			t.Fatal("expected error for negative difficulty")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("stability at sMin boundary succeeds", func(t *testing.T) {
+		boundaryCard := card
+		boundaryCard.State = Review
+		boundaryCard.Stability = sMin
+		boundaryCard.Difficulty = 5.0
+		boundaryCard.LastReview = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		_, err := f.Next(boundaryCard, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error at sMin boundary: %v", err)
+		}
+	})
+
+	t.Run("difficulty at dMin boundary succeeds", func(t *testing.T) {
+		boundaryCard := card
+		boundaryCard.State = Review
+		boundaryCard.Stability = 5.0
+		boundaryCard.Difficulty = dMin
+		boundaryCard.LastReview = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		_, err := f.Next(boundaryCard, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error at dMin boundary: %v", err)
+		}
+	})
+
+	t.Run("LastReview equal to now succeeds", func(t *testing.T) {
+		eqCard := card
+		eqCard.State = Review
+		eqCard.Stability = 10.0
+		eqCard.Difficulty = 5.0
+		eqCard.LastReview = now
+		_, err := f.Next(eqCard, now, Good)
+		if err != nil {
+			t.Fatalf("unexpected error when LastReview == now: %v", err)
+		}
+	})
+
+	t.Run("Again grade boundary succeeds", func(t *testing.T) {
+		_, err := f.Next(card, now, Again)
+		if err != nil {
+			t.Fatalf("unexpected error for Again: %v", err)
+		}
+	})
+
+	t.Run("Easy grade boundary succeeds", func(t *testing.T) {
+		_, err := f.Next(card, now, Easy)
+		if err != nil {
+			t.Fatalf("unexpected error for Easy: %v", err)
+		}
+	})
+}
+
+func TestRepeatInputValidation(t *testing.T) {
+	f := NewFSRS(DefaultParam())
+	card := NewCard(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+	now := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	t.Run("invalid card state returns error", func(t *testing.T) {
+		badCard := card
+		badCard.State = State(99)
+		_, err := f.Repeat(badCard, now)
+		if err == nil {
+			t.Fatal("expected error for invalid state")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("valid New card succeeds", func(t *testing.T) {
+		_, err := f.Repeat(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("valid Review card succeeds", func(t *testing.T) {
+		reviewCard := card
+		reviewCard.State = Review
+		reviewCard.Stability = 10.0
+		reviewCard.Difficulty = 5.0
+		reviewCard.LastReview = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		_, err := f.Repeat(reviewCard, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("valid Learning card succeeds", func(t *testing.T) {
+		learningCard := card
+		learningCard.State = Learning
+		learningCard.Stability = 2.0
+		learningCard.Difficulty = 5.0
+		learningCard.LastReview = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		_, err := f.Repeat(learningCard, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("valid Relearning card succeeds", func(t *testing.T) {
+		relearningCard := card
+		relearningCard.State = Relearning
+		relearningCard.Stability = 2.0
+		relearningCard.Difficulty = 5.0
+		relearningCard.LastReview = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		_, err := f.Repeat(relearningCard, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("NaN stability for non-New card returns error", func(t *testing.T) {
+		badCard := card
+		badCard.State = Review
+		badCard.Stability = math.NaN()
+		badCard.Difficulty = 5.0
+		_, err := f.Repeat(badCard, now)
+		if err == nil {
+			t.Fatal("expected error for NaN stability")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("zero stability for non-New card returns error", func(t *testing.T) {
+		badCard := card
+		badCard.State = Review
+		badCard.Stability = 0
+		badCard.Difficulty = 5.0
+		_, err := f.Repeat(badCard, now)
+		if err == nil {
+			t.Fatal("expected error for zero stability")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("difficulty below dMin for non-New card returns error", func(t *testing.T) {
+		badCard := card
+		badCard.State = Review
+		badCard.Stability = 5.0
+		badCard.Difficulty = 0.5
+		_, err := f.Repeat(badCard, now)
+		if err == nil {
+			t.Fatal("expected error for difficulty below dMin")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+}
+
+func TestGetRetrievabilityInputValidation(t *testing.T) {
+	f := NewFSRS(DefaultParam())
+	now := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	t.Run("New card returns 0 without error", func(t *testing.T) {
+		card := NewCard(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+		r, err := f.GetRetrievability(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if r != 0 {
+			t.Errorf("expected 0, got=%v", r)
+		}
+	})
+
+	t.Run("card with zero LastReview returns 0 without error", func(t *testing.T) {
+		card := Card{State: Review, Stability: 10.0, Difficulty: 5.0}
+		r, err := f.GetRetrievability(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if r != 0 {
+			t.Errorf("expected 0, got=%v", r)
+		}
+	})
+
+	t.Run("invalid state returns error", func(t *testing.T) {
+		card := Card{State: State(99), Stability: 10.0, Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
+		_, err := f.GetRetrievability(card, now)
+		if err == nil {
+			t.Fatal("expected error for invalid state")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("NaN stability returns error", func(t *testing.T) {
+		card := Card{State: Review, Stability: math.NaN(), Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
+		_, err := f.GetRetrievability(card, now)
+		if err == nil {
+			t.Fatal("expected error for NaN stability")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("negative stability returns error", func(t *testing.T) {
+		card := Card{State: Review, Stability: -1.0, Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
+		_, err := f.GetRetrievability(card, now)
+		if err == nil {
+			t.Fatal("expected error for negative stability")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("valid Review card succeeds", func(t *testing.T) {
+		card := Card{State: Review, Stability: 10.0, Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
+		r, err := f.GetRetrievability(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if r <= 0 || r > 1 {
+			t.Errorf("expected retrievability in (0,1], got=%v", r)
+		}
+	})
+
+	t.Run("zero stability returns error", func(t *testing.T) {
+		card := Card{State: Review, Stability: 0, Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
+		_, err := f.GetRetrievability(card, now)
+		if err == nil {
+			t.Fatal("expected error for zero stability")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("valid Learning card succeeds", func(t *testing.T) {
+		card := Card{State: Learning, Stability: 2.0, Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
+		r, err := f.GetRetrievability(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if r <= 0 || r > 1 {
+			t.Errorf("expected retrievability in (0,1], got=%v", r)
+		}
+	})
+
+	t.Run("valid Relearning card succeeds", func(t *testing.T) {
+		card := Card{State: Relearning, Stability: 2.0, Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
+		r, err := f.GetRetrievability(card, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if r <= 0 || r > 1 {
+			t.Errorf("expected retrievability in (0,1], got=%v", r)
+		}
+	})
+}
+
+func TestValidateResult(t *testing.T) {
+	t.Run("valid card passes", func(t *testing.T) {
+		card := Card{Stability: 5.0, Difficulty: 5.0}
+		if err := validateResult(card); err != nil {
+			t.Errorf("expected nil, got=%v", err)
+		}
+	})
+
+	t.Run("stability below sMin returns error", func(t *testing.T) {
+		card := Card{Stability: 0.0001, Difficulty: 5.0}
+		err := validateResult(card)
+		if err == nil {
+			t.Fatal("expected error for stability below sMin")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("NaN stability returns error", func(t *testing.T) {
+		card := Card{Stability: math.NaN(), Difficulty: 5.0}
+		err := validateResult(card)
+		if err == nil {
+			t.Fatal("expected error for NaN stability")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("difficulty below dMin returns error", func(t *testing.T) {
+		card := Card{Stability: 5.0, Difficulty: 0.5}
+		err := validateResult(card)
+		if err == nil {
+			t.Fatal("expected error for difficulty below dMin")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("NaN difficulty returns error", func(t *testing.T) {
+		card := Card{Stability: 5.0, Difficulty: math.NaN()}
+		err := validateResult(card)
+		if err == nil {
+			t.Fatal("expected error for NaN difficulty")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("stability at sMin boundary passes", func(t *testing.T) {
+		card := Card{Stability: sMin, Difficulty: 5.0}
+		if err := validateResult(card); err != nil {
+			t.Errorf("expected nil at boundary, got=%v", err)
+		}
+	})
+
+	t.Run("difficulty at dMin boundary passes", func(t *testing.T) {
+		card := Card{Stability: 5.0, Difficulty: dMin}
+		if err := validateResult(card); err != nil {
+			t.Errorf("expected nil at boundary, got=%v", err)
+		}
+	})
+}
+
+func TestValidateCardDirect(t *testing.T) {
+	now := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	t.Run("valid New card", func(t *testing.T) {
+		card := Card{State: New}
+		if err := validateCard(card, now); err != nil {
+			t.Errorf("expected nil, got=%v", err)
+		}
+	})
+
+	t.Run("valid Review card", func(t *testing.T) {
+		card := Card{State: Review, Stability: 5.0, Difficulty: 5.0}
+		if err := validateCard(card, now); err != nil {
+			t.Errorf("expected nil, got=%v", err)
+		}
+	})
+
+	t.Run("New card skips stability check", func(t *testing.T) {
+		card := Card{State: New, Stability: 0, Difficulty: 0}
+		if err := validateCard(card, now); err != nil {
+			t.Errorf("expected nil for New card with zero fields, got=%v", err)
+		}
+	})
+
+	t.Run("invalid state", func(t *testing.T) {
+		card := Card{State: State(42)}
+		err := validateCard(card, now)
+		if err == nil {
+			t.Fatal("expected error for invalid state")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", fsrsErr.Code)
+		}
+	})
+
+	t.Run("NaN stability non-New", func(t *testing.T) {
+		card := Card{State: Review, Stability: math.NaN(), Difficulty: 5.0}
+		err := validateCard(card, now)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("stability below sMin non-New", func(t *testing.T) {
+		card := Card{State: Review, Stability: 0.0005, Difficulty: 5.0}
+		err := validateCard(card, now)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("stability at sMin non-New passes", func(t *testing.T) {
+		card := Card{State: Review, Stability: sMin, Difficulty: 5.0}
+		if err := validateCard(card, now); err != nil {
+			t.Errorf("expected nil at sMin boundary, got=%v", err)
+		}
+	})
+
+	t.Run("NaN difficulty non-New", func(t *testing.T) {
+		card := Card{State: Review, Stability: 5.0, Difficulty: math.NaN()}
+		err := validateCard(card, now)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("difficulty below dMin non-New", func(t *testing.T) {
+		card := Card{State: Review, Stability: 5.0, Difficulty: 0.5}
+		err := validateCard(card, now)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("difficulty at dMin non-New passes", func(t *testing.T) {
+		card := Card{State: Review, Stability: 5.0, Difficulty: dMin}
+		if err := validateCard(card, now); err != nil {
+			t.Errorf("expected nil at dMin boundary, got=%v", err)
+		}
+	})
+
+	t.Run("LastReview after now", func(t *testing.T) {
+		card := Card{State: Review, Stability: 5.0, Difficulty: 5.0, LastReview: now.Add(1 * time.Hour)}
+		err := validateCard(card, now)
+		if err == nil {
+			t.Fatal("expected error for future LastReview")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("LastReview equal to now passes", func(t *testing.T) {
+		card := Card{State: Review, Stability: 5.0, Difficulty: 5.0, LastReview: now}
+		if err := validateCard(card, now); err != nil {
+			t.Errorf("expected nil when LastReview == now, got=%v", err)
+		}
+	})
+
+	t.Run("zero LastReview passes", func(t *testing.T) {
+		card := Card{State: Review, Stability: 5.0, Difficulty: 5.0}
+		if err := validateCard(card, now); err != nil {
+			t.Errorf("expected nil for zero LastReview, got=%v", err)
+		}
+	})
+}
+
+func TestValidateRatingDirect(t *testing.T) {
+	t.Run("Again passes", func(t *testing.T) {
+		if err := validateRating(Again); err != nil {
+			t.Errorf("expected nil for Again, got=%v", err)
+		}
+	})
+
+	t.Run("Easy passes", func(t *testing.T) {
+		if err := validateRating(Easy); err != nil {
+			t.Errorf("expected nil for Easy, got=%v", err)
+		}
+	})
+
+	t.Run("Good passes", func(t *testing.T) {
+		if err := validateRating(Good); err != nil {
+			t.Errorf("expected nil for Good, got=%v", err)
+		}
+	})
+
+	t.Run("Hard passes", func(t *testing.T) {
+		if err := validateRating(Hard); err != nil {
+			t.Errorf("expected nil for Hard, got=%v", err)
+		}
+	})
+
+	t.Run("Manual returns error", func(t *testing.T) {
+		err := validateRating(Manual)
+		if err == nil {
+			t.Fatal("expected error for Manual")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("Rating(5) returns error", func(t *testing.T) {
+		err := validateRating(Rating(5))
+		if err == nil {
+			t.Fatal("expected error for Rating(5)")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("Rating(0) returns error", func(t *testing.T) {
+		err := validateRating(Rating(0))
+		if err == nil {
+			t.Fatal("expected error for Rating(0)")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
 		}
 	})
 }
