@@ -602,6 +602,51 @@ func TestReviewHistoryToEntries(t *testing.T) {
 		}
 	})
 
+	t.Run("single entry", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+		}
+		entries, err := ReviewHistoryToEntries(reviews)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(entries) != 1 {
+			t.Fatalf("expected 1 entry, got %d", len(entries))
+		}
+		if entries[0].DeltaT != 0 {
+			t.Errorf("expected DeltaT=0 for single entry, got=%.1f", entries[0].DeltaT)
+		}
+		if entries[0].Rating != Good {
+			t.Errorf("expected Rating=Good, got=%v", entries[0].Rating)
+		}
+	})
+
+	t.Run("boundary rating Again accepted", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Again, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+		}
+		entries, err := ReviewHistoryToEntries(reviews)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if entries[0].Rating != Again {
+			t.Errorf("expected Rating=Again, got=%v", entries[0].Rating)
+		}
+	})
+
+	t.Run("boundary rating Easy accepted", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Easy, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+		}
+		entries, err := ReviewHistoryToEntries(reviews)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if entries[0].Rating != Easy {
+			t.Errorf("expected Rating=Easy, got=%v", entries[0].Rating)
+		}
+	})
+
 	t.Run("mixed ratings", func(t *testing.T) {
 		reviews := []ReviewHistory{
 			{Rating: Again, Review: time.Date(2024, 9, 10, 0, 0, 0, 0, time.UTC)},
