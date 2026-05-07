@@ -70,3 +70,41 @@ func (f *FSRS) MemoryState(history ReviewEntries, startingState *MemoryState) (*
 func (f *FSRS) HistoricalMemoryStates(history ReviewEntries, startingState *MemoryState) ([]MemoryState, error) {
 	return f.computeMemoryStates(history, startingState, true)
 }
+
+// ReviewHistoryToEntries converts a timestamp-based review history into
+// DeltaT-based [ReviewEntries] suitable for use with [FSRS.MemoryState] and
+// [FSRS.HistoricalMemoryStates]. The input reviews must be in chronological
+// order.
+//
+// Returns an error if the list is empty, any review has a zero timestamp,
+// any rating is [Manual] or outside the range [Again–Easy], or any computed
+// DeltaT is negative (indicating out-of-order timestamps).
+func ReviewHistoryToEntries(reviews []ReviewHistory) (ReviewEntries, error) {
+	if len(reviews) == 0 {
+		return nil, &Error{Code: ErrCodeInvalidInput, Message: "fsrs: review history must not be empty"}
+	}
+	entries := make(ReviewEntries, 0, len(reviews))
+	for i, review := range reviews {
+		if review.Review.IsZero() {
+			return nil, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: review[%d] has zero review time", i)}
+		}
+		if review.Rating == Manual {
+			return nil, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: review[%d] has Manual rating; use Reschedule for mixed histories", i)}
+		}
+		if review.Rating < Again || review.Rating > Easy {
+			return nil, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: review[%d] has invalid rating %d", i, review.Rating)}
+		}
+
+		var deltaT float64
+		if i == 0 {
+			deltaT = 0
+		} else {
+			deltaT = dateDiffRaw(reviews[i-1].Review, review.Review)
+			if deltaT < 0 {
+				return nil, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: review[%d] has negative delta_t (%.1f); reviews must be chronological", i, deltaT)}
+			}
+		}
+		entries = append(entries, ReviewEntry{Rating: review.Rating, DeltaT: deltaT})
+	}
+	return entries, nil
+}
