@@ -39,7 +39,7 @@ func DefaultParam() Parameters {
 
 // Validate checks that all parameters are within valid ranges. It verifies:
 // weights are finite and W[20] > 0, RequestRetention is in (0, 1],
-// MaximumInterval is in (0, 106000], and LearningSteps/RelearningSteps
+// MaximumInterval is in (0, 36500], and LearningSteps/RelearningSteps
 // contain only finite non-negative values.
 func (p *Parameters) Validate() error {
 	for i, w := range p.W {
@@ -58,8 +58,8 @@ func (p *Parameters) Validate() error {
 	}
 
 	if math.IsNaN(p.MaximumInterval) || math.IsInf(p.MaximumInterval, 0) ||
-		p.MaximumInterval <= 0 || p.MaximumInterval > 106000 {
-		return fmt.Errorf("fsrs: invalid MaximumInterval: must be in (0, 106000], got %v", p.MaximumInterval)
+		p.MaximumInterval <= 0 || p.MaximumInterval > 36500 {
+		return fmt.Errorf("fsrs: invalid MaximumInterval: must be in (0, 36500], got %v", p.MaximumInterval)
 	}
 
 	for i, s := range p.LearningSteps {
@@ -84,18 +84,13 @@ func clamp(v, lo, hi float64) float64 {
 func clipParameters(p *Parameters) {
 	const initSMax = 100.0
 	const sMin = 0.001
-	const (
-		wFailStabMult = 11
-		wFailStabPow  = 13
-		wFailStabExp  = 14
-	)
 
 	w17W18Ceiling := 2.0
 	numRelearning := len(p.RelearningSteps)
 	if numRelearning > 1 {
-		w11 := clamp(p.W[wFailStabMult], 0.001, 5.0)
-		w13 := clamp(p.W[wFailStabPow], 0.001, 0.9)
-		w14 := clamp(p.W[wFailStabExp], 0.0, 4.0)
+		w11 := clamp(p.W[11], 0.001, 5.0)
+		w13 := clamp(p.W[13], 0.001, 0.9)
+		w14 := clamp(p.W[14], 0.0, 4.0)
 		value := -(
 			math.Log(w11) +
 				math.Log(math.Pow(2.0, w13)-1.0) +

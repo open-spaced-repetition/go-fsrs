@@ -574,10 +574,9 @@ func TestValidateMaximumInterval(t *testing.T) {
 	}{
 		{"valid 36500", 36500, true},
 		{"valid 1", 1, true},
-		{"valid 106000", 106000, true},
 		{"zero", 0, false},
 		{"negative", -10, false},
-		{"above max", 106001, false},
+		{"above max", 36501, false},
 		{"NaN", math.NaN(), false},
 		{"Inf", math.Inf(1), false},
 	}
