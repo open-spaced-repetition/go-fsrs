@@ -1362,9 +1362,6 @@ func TestForget(t *testing.T) {
 		if result.Card.Difficulty != 0 {
 			t.Errorf("expected Difficulty=0, got=%v", result.Card.Difficulty)
 		}
-		if result.Card.ElapsedDays != 0 {
-			t.Errorf("expected ElapsedDays=0, got=%d", result.Card.ElapsedDays)
-		}
 		if result.Card.ScheduledDays != 0 {
 			t.Errorf("expected ScheduledDays=0, got=%d", result.Card.ScheduledDays)
 		}
@@ -1388,9 +1385,6 @@ func TestForget(t *testing.T) {
 		}
 		if result.ReviewLog.ScheduledDays != 0 {
 			t.Errorf("expected log ScheduledDays=0, got=%d", result.ReviewLog.ScheduledDays)
-		}
-		if result.ReviewLog.ElapsedDays != 0 {
-			t.Errorf("expected log ElapsedDays=0, got=%d", result.ReviewLog.ElapsedDays)
 		}
 		if result.ReviewLog.Stability != 0 {
 			t.Errorf("expected log Stability=0, got=%v", result.ReviewLog.Stability)
@@ -1422,9 +1416,6 @@ func TestForget(t *testing.T) {
 		}
 		if result.Card.Difficulty != 0 {
 			t.Errorf("expected Difficulty=0, got=%v", result.Card.Difficulty)
-		}
-		if result.Card.ElapsedDays != 0 {
-			t.Errorf("expected ElapsedDays=0, got=%d", result.Card.ElapsedDays)
 		}
 		if result.Card.ScheduledDays != 0 {
 			t.Errorf("expected ScheduledDays=0, got=%d", result.Card.ScheduledDays)
@@ -1542,9 +1533,6 @@ func TestRollback(t *testing.T) {
 		}
 		if rolledBack.ScheduledDays != result.ReviewLog.ScheduledDays {
 			t.Errorf("expected ScheduledDays=%d, got=%d", result.ReviewLog.ScheduledDays, rolledBack.ScheduledDays)
-		}
-		if rolledBack.ElapsedDays != result.ReviewLog.ElapsedDays {
-			t.Errorf("expected ElapsedDays=%d, got=%d", result.ReviewLog.ElapsedDays, rolledBack.ElapsedDays)
 		}
 		if rolledBack.Due != result.ReviewLog.Due {
 			t.Errorf("expected Due=%v, got=%v", result.ReviewLog.Due, rolledBack.Due)
@@ -1906,9 +1894,6 @@ func TestReschedule(t *testing.T) {
 		}
 		if !lastLog.Due.Equal(reviewTime.Add(24 * time.Hour)) {
 			t.Errorf("expected log Due=reviewed time, got=%v", lastLog.Due)
-		}
-		if lastLog.ElapsedDays != 1 {
-			t.Errorf("expected log ElapsedDays=1, got=%d", lastLog.ElapsedDays)
 		}
 		if lastLog.ScheduledDays != 0 {
 			t.Errorf("expected log ScheduledDays=0, got=%d", lastLog.ScheduledDays)

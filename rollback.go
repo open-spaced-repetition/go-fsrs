@@ -16,7 +16,6 @@ func (f *FSRS) Rollback(card Card, log ReviewLog) (Card, error) {
 	result.State = log.State
 	result.Stability = log.Stability
 	result.Difficulty = log.Difficulty
-	result.ElapsedDays = log.ElapsedDays
 	result.ScheduledDays = log.ScheduledDays
 	if card.Reps > 0 {
 		result.Reps = card.Reps - 1

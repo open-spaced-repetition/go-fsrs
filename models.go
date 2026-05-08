@@ -8,7 +8,6 @@ type Card struct {
 	Due            time.Time `json:"Due"`
 	Stability      float64   `json:"Stability"`
 	Difficulty     float64   `json:"Difficulty"`
-	ElapsedDays    uint64    `json:"ElapsedDays"`
 	ScheduledDays  uint64    `json:"ScheduledDays"`
 	Reps           uint64    `json:"Reps"`
 	Lapses         uint64    `json:"Lapses"`
@@ -25,7 +24,6 @@ type ReviewLog struct {
 	Rating         Rating    `json:"Rating"`
 	Due            time.Time `json:"Due"`
 	ScheduledDays  uint64    `json:"ScheduledDays"`
-	ElapsedDays    uint64    `json:"ElapsedDays"`
 	Review         time.Time `json:"Review"`
 	State          State     `json:"State"`
 	Stability      float64   `json:"Stability"`

@@ -48,11 +48,7 @@ func (f *FSRS) Reschedule(card Card, reviews []ReviewHistory, opts RescheduleOpt
 				return RescheduleResult{}, ErrManualStateRequired
 			}
 			state := *review.State
-			var elapsedDays uint64
-			if curCard.State != New && !curCard.LastReview.IsZero() {
-				elapsedDays = dateDiffInDays(curCard.LastReview, review.Review)
-			}
-			item, err = f.handleManualRating(curCard, state, review.Review, elapsedDays, review.Stability, review.Difficulty, review.Due)
+			item, err = f.handleManualRating(curCard, state, review.Review, review.Stability, review.Difficulty, review.Due)
 			if err != nil {
 				return RescheduleResult{}, err
 			}
@@ -75,7 +71,7 @@ func (f *FSRS) Reschedule(card Card, reviews []ReviewHistory, opts RescheduleOpt
 	}, nil
 }
 
-func (f *FSRS) handleManualRating(card Card, state State, reviewed time.Time, elapsedDays uint64, stability, difficulty float64, due time.Time) (SchedulingInfo, error) {
+func (f *FSRS) handleManualRating(card Card, state State, reviewed time.Time, stability, difficulty float64, due time.Time) (SchedulingInfo, error) {
 	if state == New {
 		effectiveDue := reviewed
 		if !due.IsZero() {
@@ -87,7 +83,6 @@ func (f *FSRS) handleManualRating(card Card, state State, reviewed time.Time, el
 			Due:            effectiveDue,
 			Stability:      card.Stability,
 			Difficulty:     card.Difficulty,
-			ElapsedDays:    elapsedDays,
 			ScheduledDays:  card.ScheduledDays,
 			RemainingSteps: card.RemainingSteps,
 			Review:         reviewed,
@@ -115,7 +110,6 @@ func (f *FSRS) handleManualRating(card Card, state State, reviewed time.Time, el
 		Due:            logDue,
 		Stability:      card.Stability,
 		Difficulty:     card.Difficulty,
-		ElapsedDays:    elapsedDays,
 		ScheduledDays:  card.ScheduledDays,
 		RemainingSteps: card.RemainingSteps,
 		Review:         reviewed,
@@ -136,7 +130,6 @@ func (f *FSRS) handleManualRating(card Card, state State, reviewed time.Time, el
 	nextCard.LastReview = reviewed
 	nextCard.Stability = stab
 	nextCard.Difficulty = diff
-	nextCard.ElapsedDays = elapsedDays
 	nextCard.ScheduledDays = scheduledDays
 	nextCard.Reps = card.Reps + 1
 
@@ -145,7 +138,6 @@ func (f *FSRS) handleManualRating(card Card, state State, reviewed time.Time, el
 
 func (f *FSRS) calculateManualRecord(currentCard Card, now time.Time, lastItem SchedulingInfo, updateMemory bool) *SchedulingInfo {
 	rescheduleCard := lastItem.Card
-	log := lastItem.ReviewLog
 
 	if currentCard.Due.Equal(rescheduleCard.Due) {
 		return nil
@@ -162,6 +154,6 @@ func (f *FSRS) calculateManualRecord(currentCard Card, now time.Time, lastItem S
 		diff = rescheduleCard.Difficulty
 	}
 
-	item, _ := f.handleManualRating(curCard, rescheduleCard.State, now, log.ElapsedDays, stab, diff, rescheduleCard.Due)
+	item, _ := f.handleManualRating(curCard, rescheduleCard.State, now, stab, diff, rescheduleCard.Due)
 	return &item
 }
