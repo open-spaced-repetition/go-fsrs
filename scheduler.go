@@ -46,10 +46,10 @@ func (s *Scheduler) Review(grade Rating) SchedulingInfo {
 }
 
 func (s *Scheduler) initSeed() {
-	time := s.now
+	t := s.now
 	reps := s.current.Reps
 	mul := s.current.Difficulty * s.current.Stability
-	s.parameters.seed = fmt.Sprintf("%d_%d_%f", time.Unix(), reps, mul)
+	s.parameters.seed = fmt.Sprintf("%d_%d_%f", t.UnixMilli(), reps, mul)
 }
 
 func (s *Scheduler) buildLog(rating Rating) ReviewLog {
@@ -61,7 +61,6 @@ func (s *Scheduler) buildLog(rating Rating) ReviewLog {
 		Rating:         rating,
 		Due:            due,
 		ScheduledDays:  s.current.ScheduledDays,
-		ElapsedDays:    s.current.ElapsedDays,
 		Review:         s.now,
 		State:          s.current.State,
 		Stability:      s.current.Stability,
@@ -71,20 +70,17 @@ func (s *Scheduler) buildLog(rating Rating) ReviewLog {
 }
 
 func (p *Parameters) newScheduler(card Card, now time.Time, newImpl func(s *Scheduler) implScheduler) *Scheduler {
+	localParams := *p
+
 	s := &Scheduler{
-		parameters: p,
+		parameters: &localParams,
 		next:       make(RecordLog),
 		last:       card,
 		current:    card,
 		now:        now,
 	}
 
-	var interval float64 = 0 // card.state === State.New => 0
-	if s.current.State != New && !s.current.LastReview.IsZero() {
-		interval = float64(dateDiffInDays(s.current.LastReview, s.now))
-	}
 	s.current.LastReview = s.now
-	s.current.ElapsedDays = uint64(interval)
 	s.current.Reps++
 	s.initSeed()
 
@@ -99,4 +95,11 @@ func (p *Parameters) scheduler(card Card, now time.Time) *Scheduler {
 	} else {
 		return p.NewLongTermScheduler(card, now)
 	}
+}
+
+func (s *Scheduler) elapsedDays() float64 {
+	if s.last.State == New || s.last.LastReview.IsZero() {
+		return 0
+	}
+	return float64(dateDiffInDays(s.last.LastReview, s.now))
 }

@@ -23,7 +23,6 @@ func (lts longTermScheduler) newState(grade Rating) SchedulingInfo {
 	}
 
 	lts.current.ScheduledDays = 0
-	lts.current.ElapsedDays = 0
 
 	nextAgain := lts.current
 	nextHard := lts.current
@@ -40,16 +39,16 @@ func (lts longTermScheduler) newState(grade Rating) SchedulingInfo {
 }
 
 func (lts longTermScheduler) initDs(nextAgain, nextHard, nextGood, nextEasy *Card) {
-	nextAgain.Difficulty = lts.parameters.initDifficulty(Again)
+	nextAgain.Difficulty = constrainDifficulty(lts.parameters.initDifficulty(Again))
 	nextAgain.Stability = lts.parameters.initStability(Again)
 
-	nextHard.Difficulty = lts.parameters.initDifficulty(Hard)
+	nextHard.Difficulty = constrainDifficulty(lts.parameters.initDifficulty(Hard))
 	nextHard.Stability = lts.parameters.initStability(Hard)
 
-	nextGood.Difficulty = lts.parameters.initDifficulty(Good)
+	nextGood.Difficulty = constrainDifficulty(lts.parameters.initDifficulty(Good))
 	nextGood.Stability = lts.parameters.initStability(Good)
 
-	nextEasy.Difficulty = lts.parameters.initDifficulty(Easy)
+	nextEasy.Difficulty = constrainDifficulty(lts.parameters.initDifficulty(Easy))
 	nextEasy.Stability = lts.parameters.initStability(Easy)
 }
 
@@ -63,7 +62,7 @@ func (lts longTermScheduler) reviewState(grade Rating) SchedulingInfo {
 		return exist
 	}
 
-	interval := float64(lts.current.ElapsedDays)
+	interval := lts.elapsedDays()
 	difficulty := lts.last.Difficulty
 	stability := lts.last.Stability
 	retrievability := lts.parameters.ForgettingCurve(interval, stability)

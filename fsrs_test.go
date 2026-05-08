@@ -1118,8 +1118,8 @@ func TestNextStateElapsedZero(t *testing.T) {
 	if item.Memory.Stability != p.initStability(Good) {
 		t.Errorf("NextState new card: got stability=%v want=%v", item.Memory.Stability, p.initStability(Good))
 	}
-	if item.Memory.Difficulty != p.initDifficulty(Good) {
-		t.Errorf("NextState new card: got difficulty=%v want=%v", item.Memory.Difficulty, p.initDifficulty(Good))
+	if item.Memory.Difficulty != constrainDifficulty(p.initDifficulty(Good)) {
+		t.Errorf("NextState new card: got difficulty=%v want=%v", item.Memory.Difficulty, constrainDifficulty(p.initDifficulty(Good)))
 	}
 
 	current := &MemoryState{Stability: 5.0, Difficulty: 5.0}
@@ -1362,9 +1362,6 @@ func TestForget(t *testing.T) {
 		if result.Card.Difficulty != 0 {
 			t.Errorf("expected Difficulty=0, got=%v", result.Card.Difficulty)
 		}
-		if result.Card.ElapsedDays != 0 {
-			t.Errorf("expected ElapsedDays=0, got=%d", result.Card.ElapsedDays)
-		}
 		if result.Card.ScheduledDays != 0 {
 			t.Errorf("expected ScheduledDays=0, got=%d", result.Card.ScheduledDays)
 		}
@@ -1388,9 +1385,6 @@ func TestForget(t *testing.T) {
 		}
 		if result.ReviewLog.ScheduledDays != 0 {
 			t.Errorf("expected log ScheduledDays=0, got=%d", result.ReviewLog.ScheduledDays)
-		}
-		if result.ReviewLog.ElapsedDays != 0 {
-			t.Errorf("expected log ElapsedDays=0, got=%d", result.ReviewLog.ElapsedDays)
 		}
 		if result.ReviewLog.Stability != 0 {
 			t.Errorf("expected log Stability=0, got=%v", result.ReviewLog.Stability)
@@ -1422,9 +1416,6 @@ func TestForget(t *testing.T) {
 		}
 		if result.Card.Difficulty != 0 {
 			t.Errorf("expected Difficulty=0, got=%v", result.Card.Difficulty)
-		}
-		if result.Card.ElapsedDays != 0 {
-			t.Errorf("expected ElapsedDays=0, got=%d", result.Card.ElapsedDays)
 		}
 		if result.Card.ScheduledDays != 0 {
 			t.Errorf("expected ScheduledDays=0, got=%d", result.Card.ScheduledDays)
@@ -1542,9 +1533,6 @@ func TestRollback(t *testing.T) {
 		}
 		if rolledBack.ScheduledDays != result.ReviewLog.ScheduledDays {
 			t.Errorf("expected ScheduledDays=%d, got=%d", result.ReviewLog.ScheduledDays, rolledBack.ScheduledDays)
-		}
-		if rolledBack.ElapsedDays != result.ReviewLog.ElapsedDays {
-			t.Errorf("expected ElapsedDays=%d, got=%d", result.ReviewLog.ElapsedDays, rolledBack.ElapsedDays)
 		}
 		if rolledBack.Due != result.ReviewLog.Due {
 			t.Errorf("expected Due=%v, got=%v", result.ReviewLog.Due, rolledBack.Due)
@@ -1904,6 +1892,12 @@ func TestReschedule(t *testing.T) {
 		if lastLog.State != New {
 			t.Errorf("expected log State=New, got=%v", lastLog.State)
 		}
+		if !lastLog.Due.Equal(reviewTime.Add(24 * time.Hour)) {
+			t.Errorf("expected log Due=reviewed time, got=%v", lastLog.Due)
+		}
+		if lastLog.ScheduledDays != 0 {
+			t.Errorf("expected log ScheduledDays=0, got=%d", lastLog.ScheduledDays)
+		}
 	})
 
 	t.Run("manual rating with state New and explicit Due", func(t *testing.T) {
@@ -1925,6 +1919,28 @@ func TestReschedule(t *testing.T) {
 		}
 		if lastCard.ScheduledDays != 6 {
 			t.Errorf("expected ScheduledDays=6, got=%d", lastCard.ScheduledDays)
+		}
+	})
+
+	t.Run("manual rating with state New and Due before Review", func(t *testing.T) {
+		reviewTime := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		dueBeforeReview := time.Date(2024, 9, 10, 0, 0, 0, 0, time.UTC)
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: reviewTime},
+			{Rating: Manual, Review: reviewTime.Add(24 * time.Hour), State: StatePtr(New), Due: dueBeforeReview},
+		}
+
+		result, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		lastCard := result.Collections[1].Card
+		if !lastCard.Due.Equal(dueBeforeReview) {
+			t.Errorf("expected Due=%v, got=%v", dueBeforeReview, lastCard.Due)
+		}
+		if lastCard.ScheduledDays != 0 {
+			t.Errorf("expected ScheduledDays=0 when Due <= Review, got=%d", lastCard.ScheduledDays)
 		}
 	})
 
@@ -2106,6 +2122,26 @@ func TestReschedule(t *testing.T) {
 		}
 		if len(result.Collections) != 2 {
 			t.Errorf("expected 2 collections (Manual filtered), got %d", len(result.Collections))
+		}
+	})
+
+	t.Run("skip manual with all-Manual reviews yields empty collections", func(t *testing.T) {
+		r1 := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		r2 := time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)
+		reviews := []ReviewHistory{
+			{Rating: Manual, Review: r1, State: StatePtr(New)},
+			{Rating: Manual, Review: r2, State: StatePtr(New)},
+		}
+
+		result, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{SkipManual: true})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result.Collections) != 0 {
+			t.Errorf("expected 0 collections, got %d", len(result.Collections))
+		}
+		if result.RescheduleItem != nil {
+			t.Error("expected nil RescheduleItem with empty collections")
 		}
 	})
 
@@ -2416,6 +2452,85 @@ func TestReschedule(t *testing.T) {
 		}
 	})
 
+	t.Run("reschedule item for manual-last replay with non-New state", func(t *testing.T) {
+		r1 := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		r2 := time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)
+		manualDue := time.Date(2024, 9, 28, 0, 0, 0, 0, time.UTC)
+
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: r1},
+			{Rating: Manual, Review: r2, State: StatePtr(Review), Stability: 10.0, Difficulty: 5.0, Due: manualDue},
+		}
+
+		now := time.Date(2024, 10, 27, 0, 0, 0, 0, time.UTC)
+		currentCard := Card{Due: now, State: Review, Reps: 3, Stability: 1.0, Difficulty: 1.0}
+
+		result, err := f.Reschedule(currentCard, reviews, RescheduleOptions{
+			UpdateMemoryState: true,
+			Now:               now,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.RescheduleItem == nil {
+			t.Fatal("expected non-nil reschedule_item for manual-last replay")
+		}
+		if result.RescheduleItem.Card.State != Review {
+			t.Errorf("expected State=Review, got=%v", result.RescheduleItem.Card.State)
+		}
+		if math.Abs(result.RescheduleItem.Card.Stability-10.0) > 1e-6 {
+			t.Errorf("with UpdateMemoryState: expected Stability=10.0, got=%v", result.RescheduleItem.Card.Stability)
+		}
+		if math.Abs(result.RescheduleItem.Card.Difficulty-5.0) > 1e-6 {
+			t.Errorf("with UpdateMemoryState: expected Difficulty=5.0, got=%v", result.RescheduleItem.Card.Difficulty)
+		}
+	})
+
+	t.Run("reschedule item for manual-last New state", func(t *testing.T) {
+		r1 := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		r2 := time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)
+
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: r1},
+			{Rating: Manual, Review: r2, State: StatePtr(New)},
+		}
+
+		now := time.Date(2024, 10, 27, 0, 0, 0, 0, time.UTC)
+		currentCard := Card{Due: now, State: Review, Reps: 3, Stability: 10.0, Difficulty: 5.0}
+
+		result, err := f.Reschedule(currentCard, reviews, RescheduleOptions{
+			Now: now,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.RescheduleItem == nil {
+			t.Fatal("expected non-nil reschedule_item when current card Due differs from manual-last New card")
+		}
+		if result.RescheduleItem.Card.State != New {
+			t.Errorf("expected State=New, got=%v", result.RescheduleItem.Card.State)
+		}
+	})
+
+	t.Run("manual due before review produces zero scheduled days", func(t *testing.T) {
+		r1 := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		dueBeforeReview := time.Date(2024, 9, 10, 0, 0, 0, 0, time.UTC)
+
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: r1},
+			{Rating: Manual, Review: time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC), State: StatePtr(Review), Stability: 5.0, Difficulty: 4.0, Due: dueBeforeReview},
+		}
+
+		result, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		manualCard := result.Collections[1].Card
+		if manualCard.ScheduledDays != 0 {
+			t.Errorf("expected ScheduledDays=0 when due < review, got=%d", manualCard.ScheduledDays)
+		}
+	})
+
 	t.Run("reschedule item with update memory state", func(t *testing.T) {
 		reviewTimes := []time.Time{
 			time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC),
@@ -2454,6 +2569,138 @@ func TestReschedule(t *testing.T) {
 		}
 		if math.Abs(result2.RescheduleItem.Card.Difficulty-lastCard.Difficulty) > 1e-10 {
 			t.Errorf("with UpdateMemoryState: expected Difficulty=%v, got=%v", lastCard.Difficulty, result2.RescheduleItem.Card.Difficulty)
+		}
+	})
+}
+
+func TestApplyFuzz(t *testing.T) {
+	p := DefaultParam()
+
+	t.Run("returns input when fuzz disabled", func(t *testing.T) {
+		p.EnableFuzz = false
+		got := p.ApplyFuzz(5.0, 0, false)
+		if got != 5.0 {
+			t.Errorf("expected 5.0, got=%v", got)
+		}
+	})
+
+	t.Run("returns input when interval below 2.5", func(t *testing.T) {
+		got := p.ApplyFuzz(2.3, 0, true)
+		if got != 2.3 {
+			t.Errorf("expected 2.3, got=%v", got)
+		}
+	})
+
+	t.Run("fuzz result within expected range at boundary 2.5", func(t *testing.T) {
+		p.EnableFuzz = true
+		p.seed = "test-seed-2.5"
+		minIvl, maxIvl := getFuzzRange(3, 0, p.MaximumInterval)
+		got := p.ApplyFuzz(2.5, 0, true)
+		if got < float64(minIvl) || got > float64(maxIvl) {
+			t.Errorf("expected result in [%d, %d], got=%v", minIvl, maxIvl, got)
+		}
+	})
+
+	t.Run("fuzz result within expected range for interval 3", func(t *testing.T) {
+		p.EnableFuzz = true
+		p.seed = "test-seed-3"
+		minIvl, maxIvl := getFuzzRange(3, 0, p.MaximumInterval)
+		got := p.ApplyFuzz(3.0, 0, true)
+		if got < float64(minIvl) || got > float64(maxIvl) {
+			t.Errorf("expected result in [%d, %d], got=%v", minIvl, maxIvl, got)
+		}
+	})
+
+	t.Run("fuzz result clamped by maximum interval", func(t *testing.T) {
+		p.EnableFuzz = true
+		p.MaximumInterval = 5
+		p.seed = "test-seed-max"
+		got := p.ApplyFuzz(100.0, 0, true)
+		if got > 5 {
+			t.Errorf("expected result <= 5 (MaximumInterval), got=%v", got)
+		}
+	})
+
+	t.Run("fuzz result respects elapsed days floor", func(t *testing.T) {
+		p.EnableFuzz = true
+		p.MaximumInterval = 36500
+		p.seed = "test-seed-elapsed"
+		ivl := 5.0
+		elapsedDays := 4.0
+		minIvl, maxIvl := getFuzzRange(ivl, elapsedDays, p.MaximumInterval)
+		got := p.ApplyFuzz(ivl, elapsedDays, true)
+		if got < float64(minIvl) || got > float64(maxIvl) {
+			t.Errorf("expected result in [%d, %d], got=%v", minIvl, maxIvl, got)
+		}
+	})
+
+	t.Run("fuzz is deterministic for same seed", func(t *testing.T) {
+		p.EnableFuzz = true
+		p.seed = "deterministic-seed"
+		first := p.ApplyFuzz(10.0, 0, true)
+		p.seed = "deterministic-seed"
+		second := p.ApplyFuzz(10.0, 0, true)
+		if first != second {
+			t.Errorf("expected deterministic results: first=%v, second=%v", first, second)
+		}
+	})
+
+	t.Run("fuzz range at large interval", func(t *testing.T) {
+		p.EnableFuzz = true
+		p.MaximumInterval = 36500
+		p.seed = "test-seed-large"
+		minIvl, maxIvl := getFuzzRange(100.0, 0, p.MaximumInterval)
+		got := p.ApplyFuzz(100.0, 0, true)
+		if got < float64(minIvl) || got > float64(maxIvl) {
+			t.Errorf("expected result in [%d, %d], got=%v", minIvl, maxIvl, got)
+		}
+		if maxIvl > 36500 {
+			t.Errorf("expected maxIvl <= 36500, got=%d", maxIvl)
+		}
+	})
+}
+
+func TestGetFuzzRange(t *testing.T) {
+	t.Run("small interval uses minimal delta", func(t *testing.T) {
+		minIvl, maxIvl := getFuzzRange(3, 0, 36500)
+		if minIvl > maxIvl {
+			t.Errorf("minIvl > maxIvl: %d > %d", minIvl, maxIvl)
+		}
+		if minIvl < 2 {
+			t.Errorf("expected minIvl >= 2, got=%d", minIvl)
+		}
+	})
+
+	t.Run("clamped by maximum interval", func(t *testing.T) {
+		_, maxIvl := getFuzzRange(100000, 0, 10)
+		if maxIvl > 10 {
+			t.Errorf("expected maxIvl <= 10, got=%d", maxIvl)
+		}
+	})
+
+	t.Run("elapsed days floor when interval exceeds elapsed", func(t *testing.T) {
+		minIvl, _ := getFuzzRange(5, 4, 36500)
+		if minIvl < 5 {
+			t.Errorf("expected minIvl >= 5 (elapsedDays+1), got=%d", minIvl)
+		}
+	})
+
+	t.Run("min never exceeds max", func(t *testing.T) {
+		for _, tc := range []struct {
+			ivl    float64
+			elapsed float64
+			maxIvl float64
+		}{
+			{2.5, 0, 36500},
+			{7.0, 0, 36500},
+			{20.0, 0, 36500},
+			{5.0, 10, 36500},
+			{3.0, 0, 2},
+		} {
+			minIvl, maxIvl := getFuzzRange(tc.ivl, tc.elapsed, tc.maxIvl)
+			if minIvl > maxIvl {
+				t.Errorf("ivl=%v elapsed=%v maxIvl=%v: minIvl=%d > maxIvl=%d", tc.ivl, tc.elapsed, tc.maxIvl, minIvl, maxIvl)
+			}
 		}
 	})
 }

@@ -17,16 +17,6 @@ func (p *Parameters) NewBasicScheduler(card Card, now time.Time) *Scheduler {
 	})
 }
 
-func minutesToDuration(minutes float64) time.Duration {
-	return time.Duration(minutes * float64(time.Minute))
-}
-
-func daysToDuration(days, maxDays float64) time.Duration {
-	days = math.Min(days, maxDays)
-	hours := days * 24
-	return time.Duration(hours * float64(time.Hour))
-}
-
 func (bs basicScheduler) applyStep(next *Card, delayMinutes float64, toState State) {
 	next.Due = bs.now.Add(minutesToDuration(delayMinutes))
 	if delayMinutes >= 1440 {
@@ -53,21 +43,22 @@ func (bs basicScheduler) newState(grade Rating) SchedulingInfo {
 	}
 
 	next := bs.current
-	next.Difficulty = bs.parameters.initDifficulty(grade)
+	next.Difficulty = constrainDifficulty(bs.parameters.initDifficulty(grade))
 	next.Stability = bs.parameters.initStability(grade)
 	steps := bs.parameters.LearningSteps
+	elapsed := bs.elapsedDays()
 
 	switch grade {
 	case Again:
 		if len(steps) == 0 {
-			bs.graduateToReview(&next, next.Stability, float64(next.ElapsedDays))
+			bs.graduateToReview(&next, next.Stability, elapsed)
 		} else {
 			next.RemainingSteps = len(steps)
 			bs.applyStep(&next, bs.parameters.againDelayMinutes(steps), Learning)
 		}
 	case Hard:
 		if len(steps) == 0 {
-			bs.graduateToReview(&next, next.Stability, float64(next.ElapsedDays))
+			bs.graduateToReview(&next, next.Stability, elapsed)
 		} else {
 			next.RemainingSteps = len(steps)
 			bs.applyStep(&next, bs.parameters.hardDelayMinutes(steps), Learning)
@@ -77,10 +68,10 @@ func (bs basicScheduler) newState(grade Rating) SchedulingInfo {
 			next.RemainingSteps = len(steps) - 1
 			bs.applyStep(&next, delay, Learning)
 		} else {
-			bs.graduateToReview(&next, next.Stability, float64(next.ElapsedDays))
+			bs.graduateToReview(&next, next.Stability, elapsed)
 		}
 	case Easy:
-		bs.graduateToReview(&next, next.Stability, float64(next.ElapsedDays))
+		bs.graduateToReview(&next, next.Stability, elapsed)
 	}
 
 	item := SchedulingInfo{
@@ -108,7 +99,7 @@ func (bs basicScheduler) learningState(grade Rating) SchedulingInfo {
 	}
 
 	next := bs.current
-	interval := float64(bs.current.ElapsedDays)
+	interval := bs.elapsedDays()
 	next.Difficulty = bs.parameters.nextDifficulty(bs.last.Difficulty, grade)
 
 	var retrievability float64
@@ -171,7 +162,7 @@ func (bs basicScheduler) reviewState(grade Rating) SchedulingInfo {
 		return exist
 	}
 
-	interval := float64(bs.current.ElapsedDays)
+	interval := bs.elapsedDays()
 	difficulty := bs.last.Difficulty
 	stability := bs.last.Stability
 
