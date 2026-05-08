@@ -39,16 +39,16 @@ func (lts longTermScheduler) newState(grade Rating) SchedulingInfo {
 }
 
 func (lts longTermScheduler) initDs(nextAgain, nextHard, nextGood, nextEasy *Card) {
-	nextAgain.Difficulty = lts.parameters.initDifficulty(Again)
+	nextAgain.Difficulty = constrainDifficulty(lts.parameters.initDifficulty(Again))
 	nextAgain.Stability = lts.parameters.initStability(Again)
 
-	nextHard.Difficulty = lts.parameters.initDifficulty(Hard)
+	nextHard.Difficulty = constrainDifficulty(lts.parameters.initDifficulty(Hard))
 	nextHard.Stability = lts.parameters.initStability(Hard)
 
-	nextGood.Difficulty = lts.parameters.initDifficulty(Good)
+	nextGood.Difficulty = constrainDifficulty(lts.parameters.initDifficulty(Good))
 	nextGood.Stability = lts.parameters.initStability(Good)
 
-	nextEasy.Difficulty = lts.parameters.initDifficulty(Easy)
+	nextEasy.Difficulty = constrainDifficulty(lts.parameters.initDifficulty(Easy))
 	nextEasy.Stability = lts.parameters.initStability(Easy)
 }
 

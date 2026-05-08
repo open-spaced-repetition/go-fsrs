@@ -1118,8 +1118,8 @@ func TestNextStateElapsedZero(t *testing.T) {
 	if item.Memory.Stability != p.initStability(Good) {
 		t.Errorf("NextState new card: got stability=%v want=%v", item.Memory.Stability, p.initStability(Good))
 	}
-	if item.Memory.Difficulty != p.initDifficulty(Good) {
-		t.Errorf("NextState new card: got difficulty=%v want=%v", item.Memory.Difficulty, p.initDifficulty(Good))
+	if item.Memory.Difficulty != constrainDifficulty(p.initDifficulty(Good)) {
+		t.Errorf("NextState new card: got difficulty=%v want=%v", item.Memory.Difficulty, constrainDifficulty(p.initDifficulty(Good)))
 	}
 
 	current := &MemoryState{Stability: 5.0, Difficulty: 5.0}

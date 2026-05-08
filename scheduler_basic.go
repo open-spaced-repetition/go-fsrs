@@ -43,7 +43,7 @@ func (bs basicScheduler) newState(grade Rating) SchedulingInfo {
 	}
 
 	next := bs.current
-	next.Difficulty = bs.parameters.initDifficulty(grade)
+	next.Difficulty = constrainDifficulty(bs.parameters.initDifficulty(grade))
 	next.Stability = bs.parameters.initStability(grade)
 	steps := bs.parameters.LearningSteps
 	elapsed := bs.elapsedDays()

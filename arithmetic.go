@@ -50,10 +50,6 @@ func (p *Parameters) initStability(r Rating) float64 {
 }
 
 func (p *Parameters) initDifficulty(r Rating) float64 {
-	return constrainDifficulty(p.W[4] - math.Exp(p.W[5]*float64(r-1)) + 1)
-}
-
-func (p *Parameters) initDifficultyRaw(r Rating) float64 {
 	return p.W[4] - math.Exp(p.W[5]*float64(r-1)) + 1
 }
 
@@ -77,7 +73,7 @@ func (p *Parameters) nextIntervalRaw(s float64) float64 {
 func (p *Parameters) nextDifficulty(d float64, r Rating) float64 {
 	deltaD := -p.W[6] * float64(r-3)
 	nextD := d + linearDamping(deltaD, d)
-	return constrainDifficulty(p.meanReversion(p.initDifficultyRaw(Easy), nextD))
+	return constrainDifficulty(p.meanReversion(p.initDifficulty(Easy), nextD))
 }
 
 func (p *Parameters) shortTermStability(s float64, r Rating) float64 {
@@ -94,9 +90,6 @@ func (p *Parameters) meanReversion(init float64, current float64) float64 {
 }
 
 func (p *Parameters) nextRecallStability(d float64, s float64, r float64, rating Rating) float64 {
-	d = constrainDifficulty(d)
-	s = constrainStability(s)
-
 	var hardPenalty, easyBonus float64
 	if rating == Hard {
 		hardPenalty = p.W[15]
@@ -119,9 +112,6 @@ func (p *Parameters) nextRecallStability(d float64, s float64, r float64, rating
 }
 
 func (p *Parameters) nextForgetStability(d float64, s float64, r float64) float64 {
-	d = constrainDifficulty(d)
-	s = constrainStability(s)
-
 	newS := p.W[11] *
 		math.Pow(d, -p.W[12]) *
 		(math.Pow(s+1, p.W[13]) - 1) *

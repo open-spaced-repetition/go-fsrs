@@ -78,7 +78,7 @@ func (p *Parameters) nextStateInner(current *MemoryState, desiredRetention, elap
 
 	if current == nil || current.Stability == 0 {
 		newS = p.initStability(grade)
-		newD = p.initDifficulty(grade)
+		newD = constrainDifficulty(p.initDifficulty(grade))
 	} else {
 		newD = p.nextDifficulty(current.Difficulty, grade)
 		if elapsed == 0 && p.EnableShortTerm {
