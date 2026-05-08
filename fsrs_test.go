@@ -316,6 +316,57 @@ func TestDateDiffInDays(t *testing.T) {
 	}
 }
 
+func TestNewCard(t *testing.T) {
+	t.Run("default sets Due to current time", func(t *testing.T) {
+		before := time.Now()
+		card := NewCard()
+		after := time.Now()
+		if card.Due.Before(before) || card.Due.After(after) {
+			t.Errorf("expected Due between %v and %v, got=%v", before, after, card.Due)
+		}
+	})
+
+	t.Run("explicit time sets Due to provided value", func(t *testing.T) {
+		specificTime := time.Date(2024, 6, 15, 10, 30, 0, 0, time.UTC)
+		card := NewCard(specificTime)
+		if !card.Due.Equal(specificTime) {
+			t.Errorf("expected Due=%v, got=%v", specificTime, card.Due)
+		}
+		if card.Stability != 0 || card.Difficulty != 0 {
+			t.Errorf("expected zero Stability/Difficulty, got s=%v d=%v", card.Stability, card.Difficulty)
+		}
+		if card.State != 0 || card.Reps != 0 || card.Lapses != 0 {
+			t.Errorf("expected zero State/Reps/Lapses, got state=%v reps=%d lapses=%d", card.State, card.Reps, card.Lapses)
+		}
+	})
+
+	t.Run("multiple variadic args uses only first", func(t *testing.T) {
+		first := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		second := time.Date(2025, 6, 15, 0, 0, 0, 0, time.UTC)
+		card := NewCard(first, second)
+		if !card.Due.Equal(first) {
+			t.Errorf("expected Due=%v (first arg), got=%v", first, card.Due)
+		}
+	})
+
+	t.Run("zero time sets Due to zero", func(t *testing.T) {
+		card := NewCard(time.Time{})
+		if !card.Due.IsZero() {
+			t.Errorf("expected zero Due, got=%v", card.Due)
+		}
+	})
+
+	t.Run("other fields remain zero", func(t *testing.T) {
+		card := NewCard()
+		if card.Stability != 0 || card.Difficulty != 0 {
+			t.Errorf("expected zero Stability/Difficulty, got s=%v d=%v", card.Stability, card.Difficulty)
+		}
+		if card.State != 0 || card.Reps != 0 || card.Lapses != 0 {
+			t.Errorf("expected zero State/Reps/Lapses, got state=%v reps=%d lapses=%d", card.State, card.Reps, card.Lapses)
+		}
+	})
+}
+
 func TestGetRetrievability(t *testing.T) {
 	retrievabilityList := []float64{}
 	fsrs := NewFSRS(DefaultParam())
@@ -888,45 +939,84 @@ func TestNextStateSingle(t *testing.T) {
 }
 
 func TestReviewLogFields(t *testing.T) {
-	p := DefaultParam()
-	fsrs := NewFSRS(p)
-	card := NewCard()
-	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
+	t.Run("zero Due card preserves zero in review log", func(t *testing.T) {
+		fsrs := NewFSRS(DefaultParam())
+		card := NewCard(time.Time{})
+		now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	record := fsrs.Next(card, now, Good)
-	log := record.ReviewLog
+		record := fsrs.Next(card, now, Good)
+		log := record.ReviewLog
 
-	if !log.Due.IsZero() {
-		t.Errorf("ReviewLog.Due should be zero for new card (pre-review), got=%v", log.Due)
-	}
-	if log.Stability != 0 {
-		t.Errorf("ReviewLog.Stability should be 0 for new card (pre-review), got=%v", log.Stability)
-	}
-	if log.Difficulty != 0 {
-		t.Errorf("ReviewLog.Difficulty should be 0 for new card (pre-review), got=%v", log.Difficulty)
-	}
-	if log.RemainingSteps != 0 {
-		t.Errorf("ReviewLog.RemainingSteps should be 0 for new card (pre-review), got=%d", log.RemainingSteps)
-	}
+		if !log.Due.IsZero() {
+			t.Errorf("ReviewLog.Due should be zero for new card with zero Due (pre-review), got=%v", log.Due)
+		}
+		if log.Stability != 0 {
+			t.Errorf("ReviewLog.Stability should be 0 for new card (pre-review), got=%v", log.Stability)
+		}
+		if log.Difficulty != 0 {
+			t.Errorf("ReviewLog.Difficulty should be 0 for new card (pre-review), got=%v", log.Difficulty)
+		}
+		if log.RemainingSteps != 0 {
+			t.Errorf("ReviewLog.RemainingSteps should be 0 for new card (pre-review), got=%d", log.RemainingSteps)
+		}
+	})
 
-	card = record.Card
-	previousLastReview := card.LastReview
-	now = card.Due
-	record = fsrs.Next(card, now, Good)
-	log = record.ReviewLog
+	t.Run("default Due card propagates to review log", func(t *testing.T) {
+		fsrs := NewFSRS(DefaultParam())
+		card := NewCard()
+		cardDue := card.Due
+		now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 
-	if log.Due != previousLastReview {
-		t.Errorf("ReviewLog.Due should be the card's last review time, got=%v want=%v", log.Due, previousLastReview)
-	}
-	if log.Stability == 0 {
-		t.Errorf("ReviewLog.Stability should be non-zero after first review")
-	}
-	if log.Difficulty == 0 {
-		t.Errorf("ReviewLog.Difficulty should be non-zero after first review")
-	}
-	if log.RemainingSteps != 1 {
-		t.Errorf("ReviewLog.RemainingSteps should be 1 (Learning card with 1 step remaining), got=%d", log.RemainingSteps)
-	}
+		record := fsrs.Next(card, now, Good)
+		log := record.ReviewLog
+
+		if log.Due.IsZero() {
+			t.Errorf("ReviewLog.Due should be non-zero for card with default Due, got=%v", log.Due)
+		}
+		if log.Due != cardDue {
+			t.Errorf("ReviewLog.Due should equal card.Due (%v), got=%v", cardDue, log.Due)
+		}
+	})
+
+	t.Run("second review log carries previous LastReview", func(t *testing.T) {
+		fsrs := NewFSRS(DefaultParam())
+		card := NewCard(time.Time{})
+		now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
+
+		record := fsrs.Next(card, now, Good)
+		card = record.Card
+		previousLastReview := card.LastReview
+		now = card.Due
+		record = fsrs.Next(card, now, Good)
+		log := record.ReviewLog
+
+		if log.Due != previousLastReview {
+			t.Errorf("ReviewLog.Due should be the card's last review time, got=%v want=%v", log.Due, previousLastReview)
+		}
+		if log.Stability == 0 {
+			t.Errorf("ReviewLog.Stability should be non-zero after first review")
+		}
+		if log.Difficulty == 0 {
+			t.Errorf("ReviewLog.Difficulty should be non-zero after first review")
+		}
+		if log.RemainingSteps != 1 {
+			t.Errorf("ReviewLog.RemainingSteps should be 1 (Learning card with 1 step remaining), got=%d", log.RemainingSteps)
+		}
+	})
+
+	t.Run("explicit Due card propagates to review log", func(t *testing.T) {
+		fsrs := NewFSRS(DefaultParam())
+		specificTime := time.Date(2024, 3, 10, 8, 0, 0, 0, time.UTC)
+		card := NewCard(specificTime)
+		now := time.Date(2024, 3, 10, 12, 0, 0, 0, time.UTC)
+
+		record := fsrs.Next(card, now, Good)
+		log := record.ReviewLog
+
+		if log.Due != specificTime {
+			t.Errorf("ReviewLog.Due should equal explicit card Due (%v), got=%v", specificTime, log.Due)
+		}
+	})
 }
 
 func TestReviewStateAgainWithEmptyRelearningSteps(t *testing.T) {
