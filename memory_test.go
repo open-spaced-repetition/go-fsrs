@@ -113,7 +113,7 @@ func TestMemoryStateLongTerm(t *testing.T) {
 
 	var current *MemoryState
 	for i, rating := range ratings {
-		states := p.NextStates(current, 0.9, deltaTs[i])
+		states := f.Parameters.NextStates(current, 0.9, deltaTs[i])
 		switch rating {
 		case Again:
 			current = &states.Again.Memory

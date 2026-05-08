@@ -12,10 +12,13 @@ type FSRS struct {
 }
 
 // NewFSRS creates a new FSRS instance with the given parameters.
-// If the parameters are invalid (e.g., NaN weights), default weights are used.
+// All weights are clipped to valid ranges before validation. If validation
+// fails after clipping, all parameters are reset to defaults.
 func NewFSRS(param Parameters) *FSRS {
+	clipParameters(&param)
+
 	if param.Validate() != nil {
-		param.W = DefaultWeights()
+		param = DefaultParam()
 	}
 
 	param.Decay, param.Factor = param.decayAndFactor()
