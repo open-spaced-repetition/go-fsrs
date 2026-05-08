@@ -265,7 +265,13 @@ func TestMemoryStateMatchesRepeatSchedule(t *testing.T) {
 			elapsed = 0
 		}
 		history = append(history, ReviewEntry{Rating: rating, DeltaT: elapsed})
-		card = f.Next(card, now, rating).Card
+		{
+			rec, err := f.Next(card, now, rating)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			card = rec.Card
+		}
 		now = card.Due
 	}
 

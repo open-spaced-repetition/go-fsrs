@@ -53,7 +53,10 @@ func (f *FSRS) Reschedule(card Card, reviews []ReviewHistory, opts RescheduleOpt
 				return RescheduleResult{}, err
 			}
 		} else {
-			item = f.Next(curCard, review.Review, review.Rating)
+			item, err = f.Next(curCard, review.Review, review.Rating)
+			if err != nil {
+				return RescheduleResult{}, err
+			}
 		}
 
 		collections = append(collections, item)
