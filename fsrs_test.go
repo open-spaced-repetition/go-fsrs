@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -3320,6 +3321,218 @@ func TestReschedule(t *testing.T) {
 		}
 		if math.Abs(result2.RescheduleItem.Card.Difficulty-lastCard.Difficulty) > 1e-10 {
 			t.Errorf("with UpdateMemoryState: expected Difficulty=%v, got=%v", lastCard.Difficulty, result2.RescheduleItem.Card.Difficulty)
+		}
+	})
+
+	t.Run("invalid rating returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: 5, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+		}
+		_, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err == nil {
+			t.Fatal("expected error for invalid rating")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("invalid rating at index > 0 returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)},
+			{Rating: 5, Review: time.Date(2024, 9, 15, 0, 0, 0, 0, time.UTC)},
+		}
+		_, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err == nil {
+			t.Fatal("expected error for invalid rating at index 2")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("zero review time returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Time{}},
+		}
+		_, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err == nil {
+			t.Fatal("expected error for zero review time")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("zero review time at index > 0 returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Time{}},
+		}
+		_, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err == nil {
+			t.Fatal("expected error for zero review time at index 1")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("manual non-New as first review has zero elapsed days", func(t *testing.T) {
+		r1 := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		manualDue := time.Date(2024, 9, 28, 0, 0, 0, 0, time.UTC)
+		reviews := []ReviewHistory{
+			{Rating: Manual, Review: r1, State: StatePtr(Review), Stability: 10.0, Difficulty: 5.0, Due: manualDue},
+		}
+
+		result, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		manualCard := result.Collections[0].Card
+		if manualCard.State != Review {
+			t.Errorf("expected State=Review, got=%v", manualCard.State)
+		}
+	})
+
+	t.Run("all manual reviews with reschedule item assertions", func(t *testing.T) {
+		r1 := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		r2 := time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)
+		manualDue2 := time.Date(2024, 9, 28, 0, 0, 0, 0, time.UTC)
+		reviews := []ReviewHistory{
+			{Rating: Manual, Review: r1, State: StatePtr(New)},
+			{Rating: Manual, Review: r2, State: StatePtr(New), Due: manualDue2},
+		}
+
+		now := time.Date(2024, 10, 27, 0, 0, 0, 0, time.UTC)
+		currentCard := Card{Due: now, State: Review, Reps: 3, Stability: 10.0, Difficulty: 5.0}
+
+		result, err := f.Reschedule(currentCard, reviews, RescheduleOptions{Now: now})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result.Collections) != 2 {
+			t.Fatalf("expected 2 collections, got %d", len(result.Collections))
+		}
+		if result.RescheduleItem == nil {
+			t.Fatal("expected non-nil RescheduleItem when Due differs from current card")
+		}
+		if result.RescheduleItem.Card.State != New {
+			t.Errorf("expected State=New, got=%v", result.RescheduleItem.Card.State)
+		}
+		if result.RescheduleItem.ReviewLog.Rating != Manual {
+			t.Errorf("expected Rating=Manual in reschedule item, got=%v", result.RescheduleItem.ReviewLog.Rating)
+		}
+	})
+
+	t.Run("manual Learning with zero stability uses card values", func(t *testing.T) {
+		r1 := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		r2 := time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)
+		manualDue := time.Date(2024, 9, 14, 10, 0, 0, 0, time.UTC)
+
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: r1},
+			{Rating: Manual, Review: r2, State: StatePtr(Learning), Due: manualDue},
+		}
+
+		result, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		manualCard := result.Collections[1].Card
+		if manualCard.State != Learning {
+			t.Errorf("expected State=Learning, got=%v", manualCard.State)
+		}
+		prevCard := result.Collections[0].Card
+		if math.Abs(manualCard.Stability-prevCard.Stability) > 1e-6 {
+			t.Errorf("expected Stability to fallback to previous card's %.6f, got=%.6f", prevCard.Stability, manualCard.Stability)
+		}
+		if math.Abs(manualCard.Difficulty-prevCard.Difficulty) > 1e-6 {
+			t.Errorf("expected Difficulty to fallback to previous card's %.6f, got=%.6f", prevCard.Difficulty, manualCard.Difficulty)
+		}
+	})
+
+	t.Run("manual Relearning with zero stability uses card values", func(t *testing.T) {
+		r1 := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		r2 := time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)
+		manualDue := time.Date(2024, 9, 15, 10, 0, 0, 0, time.UTC)
+		prevDue := time.Date(2024, 9, 28, 0, 0, 0, 0, time.UTC)
+
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: r1},
+			{Rating: Manual, Review: r2, State: StatePtr(Review), Stability: 10.0, Difficulty: 5.0, Due: prevDue},
+			{Rating: Manual, Review: time.Date(2024, 9, 15, 0, 0, 0, 0, time.UTC), State: StatePtr(Relearning), Due: manualDue},
+		}
+
+		result, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		relearnCard := result.Collections[2].Card
+		if relearnCard.State != Relearning {
+			t.Errorf("expected State=Relearning, got=%v", relearnCard.State)
+		}
+		prevCard := result.Collections[1].Card
+		if math.Abs(relearnCard.Stability-prevCard.Stability) > 1e-6 {
+			t.Errorf("expected Stability to fallback to previous card's %.6f, got=%.6f", prevCard.Stability, relearnCard.Stability)
+		}
+		if math.Abs(relearnCard.Difficulty-prevCard.Difficulty) > 1e-6 {
+			t.Errorf("expected Difficulty to fallback to previous card's %.6f, got=%.6f", prevCard.Difficulty, relearnCard.Difficulty)
+		}
+	})
+
+	t.Run("handleManualRating logDue fallback when LastReview is zero", func(t *testing.T) {
+		r1 := time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)
+		manualDue := time.Date(2024, 9, 28, 0, 0, 0, 0, time.UTC)
+
+		startCard := Card{Due: time.Date(2024, 9, 10, 0, 0, 0, 0, time.UTC)}
+		reviews := []ReviewHistory{
+			{Rating: Manual, Review: r1, State: StatePtr(Review), Stability: 10.0, Difficulty: 5.0, Due: manualDue},
+		}
+
+		result, err := f.Reschedule(startCard, reviews, RescheduleOptions{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		log := result.Collections[0].ReviewLog
+		if !log.Due.Equal(startCard.Due) {
+			t.Errorf("expected ReviewLog.Due to fallback to card.Due=%v, got=%v", startCard.Due, log.Due)
+		}
+	})
+
+	t.Run("error message includes index for invalid rating", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)},
+			{Rating: 5, Review: time.Date(2024, 9, 15, 0, 0, 0, 0, time.UTC)},
+		}
+		_, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		wantMsg := "review[2]"
+		if err.Error() != "" && !strings.Contains(err.Error(), wantMsg) {
+			t.Errorf("expected error message to contain %q, got=%q", wantMsg, err.Error())
+		}
+		var fsrsErr *Error
+		if errors.As(err, &fsrsErr) {
+			if !strings.Contains(fsrsErr.Message, wantMsg) {
+				t.Errorf("expected Error.Message to contain %q, got=%q", wantMsg, fsrsErr.Message)
+			}
+		}
+	})
+
+	t.Run("manual rating with zero review time returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Manual, Review: time.Time{}, State: StatePtr(New)},
+		}
+		_, err := f.Reschedule(NewCard(), reviews, RescheduleOptions{})
+		if err == nil {
+			t.Fatal("expected error for manual rating with zero review time")
+		}
+		if !errors.Is(err, &Error{Code: ErrCodeInvalidInput}) {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
 		}
 	})
 }
