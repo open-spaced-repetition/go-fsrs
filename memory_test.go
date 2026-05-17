@@ -347,6 +347,118 @@ func TestMemoryStateSingleReviewFromNew(t *testing.T) {
 	}
 }
 
+func TestMemoryStateFromSM2(t *testing.T) {
+	f := NewFSRS(DefaultParam())
+
+	cases := []struct {
+		ease      float64
+		interval  float64
+		retention float64
+		wantStab  float64
+		wantDiff  float64
+	}{
+		{2.5, 10.0, 0.9, 10.0, 6.9140563},
+		{2.5, 10.0, 0.8, 3.01572, 9.393428},
+		{2.5, 10.0, 0.95, 24.841097, 1.2974405},
+		{1.3, 20.0, 0.9, 20.0, 10.0},
+	}
+
+	for i, tc := range cases {
+		result, err := f.MemoryStateFromSM2(tc.ease, tc.interval, tc.retention)
+		if err != nil {
+			t.Errorf("case %d: unexpected error: %v", i, err)
+			continue
+		}
+		if math.Abs(result.Stability-tc.wantStab) > 1e-5 {
+			t.Errorf("case %d: stability mismatch: got %.10f, want %.10f", i, result.Stability, tc.wantStab)
+		}
+		if math.Abs(result.Difficulty-tc.wantDiff) > 1e-5 {
+			t.Errorf("case %d: difficulty mismatch: got %.10f, want %.10f", i, result.Difficulty, tc.wantDiff)
+		}
+	}
+}
+
+func TestMemoryStateFromSM2E2E(t *testing.T) {
+	f := NewFSRS(DefaultParam())
+
+	ease := 2.0
+	interval := 15.0
+
+	state, err := f.MemoryStateFromSM2(ease, interval, 0.9)
+	if err != nil {
+		t.Fatalf("MemoryStateFromSM2 returned error: %v", err)
+	}
+
+	ns := f.NextStates(state, 0.9, uint64(interval))
+	fsrsFactor := ns.Good.Memory.Stability / interval
+
+	if math.Abs(fsrsFactor-ease) >= 0.01 {
+		t.Errorf("e2e sanity check failed: fsrs factor=%.6f, sm2 ease=%.6f (diff=%.6f)", fsrsFactor, ease, math.Abs(fsrsFactor-ease))
+	}
+}
+
+func TestMemoryStateFromSM2InvalidInput(t *testing.T) {
+	f := NewFSRS(DefaultParam())
+
+	cases := []struct {
+		name      string
+		ease      float64
+		interval  float64
+		retention float64
+	}{
+		{"retention 0", 2.5, 10.0, 0},
+		{"retention 1", 2.5, 10.0, 1},
+		{"retention negative", 2.5, 10.0, -0.1},
+		{"retention > 1", 2.5, 10.0, 1.1},
+		{"ease <= 1", 1.0, 10.0, 0.9},
+		{"ease NaN", math.NaN(), 10.0, 0.9},
+		{"ease Inf", math.Inf(1), 10.0, 0.9},
+		{"interval NaN", 2.5, math.NaN(), 0.9},
+		{"interval negative", 2.5, -1, 0.9},
+		{"retention NaN", 2.5, 10.0, math.NaN()},
+		{"retention Inf", 2.5, 10.0, math.Inf(1)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := f.MemoryStateFromSM2(tc.ease, tc.interval, tc.retention)
+			if err == nil {
+				t.Error("expected error, got nil")
+			}
+		})
+	}
+}
+
+func TestMemoryStateFromSM2Ranges(t *testing.T) {
+	f := NewFSRS(DefaultParam())
+
+	cases := []struct {
+		ease      float64
+		interval  float64
+		retention float64
+	}{
+		{1.3, 1.0, 0.9},
+		{3.0, 100.0, 0.85},
+		{2.0, 0.5, 0.95},
+		{1.5, 365.0, 0.8},
+		{2.5, 10.0, 0.7},
+	}
+
+	for i, tc := range cases {
+		result, err := f.MemoryStateFromSM2(tc.ease, tc.interval, tc.retention)
+		if err != nil {
+			t.Errorf("case %d: unexpected error: %v", i, err)
+			continue
+		}
+		if result.Stability < sMin {
+			t.Errorf("case %d: stability %.10f below sMin (%v)", i, result.Stability, sMin)
+		}
+		if result.Difficulty < dMin || result.Difficulty > dMax {
+			t.Errorf("case %d: difficulty %.10f outside [%.1f, %.1f]", i, result.Difficulty, dMin, dMax)
+		}
+	}
+}
+
 func BenchmarkMemoryState(b *testing.B) {
 	f := NewFSRS(DefaultParam())
 	history := ReviewEntries{
