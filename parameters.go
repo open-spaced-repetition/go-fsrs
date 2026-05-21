@@ -96,7 +96,7 @@ func clipParameters(p *Parameters) {
 				math.Log(math.Pow(2.0, w13)-1.0) +
 				w14*0.3) /
 			float64(numRelearning)
-		w17W18Ceiling = clamp(value, 0.01, 2.0)
+		w17W18Ceiling = clamp(math.Sqrt(math.Max(value, 0)), 0.01, 2.0)
 	}
 
 	w19Min := 0.0
