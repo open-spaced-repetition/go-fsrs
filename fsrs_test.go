@@ -704,6 +704,58 @@ func TestNewFSRSDynamicCeiling(t *testing.T) {
 			t.Errorf("W[18]: expected finite after NewFSRS with negative W[11], got=%v", f.W[18])
 		}
 	})
+
+	t.Run("negative value produces finite ceiling via sqrt guard", func(t *testing.T) {
+		p := DefaultParam()
+		p.RelearningSteps = []float64{10, 20}
+		p.W[11] = 5.0
+		p.W[13] = 0.9
+		p.W[14] = 4.0
+		p.W[17] = 1.5
+		p.W[18] = 1.5
+		f := NewFSRS(p)
+
+		// value = -(ln(5) + ln(2^0.9-1) + 4*0.3) / 2 ≈ -1.333
+		// math.Sqrt(math.Max(-1.333, 0)) = sqrt(0) = 0
+		// clamp(0, 0.01, 2.0) = 0.01
+		if math.IsNaN(f.W[17]) || math.IsInf(f.W[17], 0) {
+			t.Errorf("W[17]: expected finite for negative value, got=%v", f.W[17])
+		}
+		if math.IsNaN(f.W[18]) || math.IsInf(f.W[18], 0) {
+			t.Errorf("W[18]: expected finite for negative value, got=%v", f.W[18])
+		}
+		if f.W[17] < 0 || f.W[18] < 0 {
+			t.Errorf("W[17]=%v, W[18]=%v: expected non-negative", f.W[17], f.W[18])
+		}
+	})
+
+	t.Run("W17/W18 ceiling with multiple relearning steps applies square root", func(t *testing.T) {
+		p := DefaultParam()
+		p.RelearningSteps = []float64{10, 20, 30, 40} // len = 4
+		p.W[11] = 0.1
+		p.W[13] = 0.1
+		p.W[14] = 0.5
+		p.W[17] = 2.0
+		p.W[18] = 2.0
+		f := NewFSRS(p)
+
+		// Manual calculation:
+		// w11 = 0.1 -> ln(0.1) ≈ -2.30258509
+		// w13 = 0.1 -> ln(2^0.1 - 1) = ln(1.07177346 - 1) = ln(0.07177346) ≈ -2.63422967
+		// w14 = 0.5 -> w14 * 0.3 = 0.15
+		// sum = -2.30258509 - 2.63422967 + 0.15 = -4.78681476
+		// value = -sum / 4 = 1.19670369
+		// expected ceiling = sqrt(value) ≈ 1.0939395
+		// Without sqrt, the ceiling would be 1.19670369.
+		expectedCeiling := 1.0939395
+		tolerance := 1e-5
+		if math.Abs(f.W[17]-expectedCeiling) > tolerance {
+			t.Errorf("W[17]: expected ceiling ≈ %v (with sqrt), got=%v", expectedCeiling, f.W[17])
+		}
+		if math.Abs(f.W[18]-expectedCeiling) > tolerance {
+			t.Errorf("W[18]: expected ceiling ≈ %v (with sqrt), got=%v", expectedCeiling, f.W[18])
+		}
+	})
 }
 
 func TestNewFSRSW19EnableShortTerm(t *testing.T) {
