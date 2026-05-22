@@ -10,6 +10,8 @@ const (
 	ErrCodeInvalidRating
 	ErrCodeManualStateRequired
 	ErrCodeManualDueRequired
+	ErrCodeInvalidWeightsLength
+	ErrCodeInvalidWeightsValue
 )
 
 // Error represents a structured FSRS error with a machine-readable code
@@ -68,5 +70,17 @@ var (
 	ErrManualDueRequired = &Error{
 		Code:    ErrCodeManualDueRequired,
 		Message: "fsrs: due is required for manual rating when state is not New",
+	}
+
+	// ErrInvalidWeightsLength is returned when migrating weights with a length other than 17, 19, or 21.
+	ErrInvalidWeightsLength = &Error{
+		Code:    ErrCodeInvalidWeightsLength,
+		Message: "fsrs: invalid weights slice length: must be 17, 19, or 21",
+	}
+
+	// ErrInvalidWeightsValue is returned when any weight parameter is NaN or Inf.
+	ErrInvalidWeightsValue = &Error{
+		Code:    ErrCodeInvalidWeightsValue,
+		Message: "fsrs: invalid weights value: must be finite",
 	}
 )
