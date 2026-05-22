@@ -707,3 +707,122 @@ func TestReviewHistoryToEntriesMatchesReschedule(t *testing.T) {
 		t.Errorf("difficulty mismatch: Reschedule=%.10f, MemoryState=%.10f", lastCard.Difficulty, memState.Difficulty)
 	}
 }
+
+func TestRefreshDue(t *testing.T) {
+	f := NewFSRS(DefaultParam())
+
+	t.Run("basic refresh from graded history", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 17, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 28, 0, 0, 0, 0, time.UTC)},
+		}
+		now := time.Date(2024, 10, 1, 0, 0, 0, 0, time.UTC)
+		card := NewCard()
+
+		result, err := f.RefreshDue(card, reviews, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if result.Stability <= 0 {
+			t.Errorf("expected positive stability, got %.6f", result.Stability)
+		}
+		if result.Difficulty < 1 || result.Difficulty > 10 {
+			t.Errorf("expected difficulty in [1,10], got %.6f", result.Difficulty)
+		}
+		if result.ScheduledDays == 0 {
+			t.Error("expected non-zero ScheduledDays")
+		}
+		if !result.Due.After(now) {
+			t.Errorf("expected Due > now, got Due=%v now=%v", result.Due, now)
+		}
+		if !result.LastReview.Equal(now) {
+			t.Errorf("expected LastReview=%v, got=%v", now, result.LastReview)
+		}
+	})
+
+	t.Run("preserves reps and lapses", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 14, 0, 0, 0, 0, time.UTC)},
+		}
+		now := time.Date(2024, 10, 1, 0, 0, 0, 0, time.UTC)
+		card := Card{Reps: 5, Lapses: 2}
+
+		result, err := f.RefreshDue(card, reviews, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Reps != 5 {
+			t.Errorf("expected Reps=5, got=%d", result.Reps)
+		}
+		if result.Lapses != 2 {
+			t.Errorf("expected Lapses=2, got=%d", result.Lapses)
+		}
+	})
+
+	t.Run("preserves state", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+		}
+		now := time.Date(2024, 10, 1, 0, 0, 0, 0, time.UTC)
+		card := Card{State: Review}
+
+		result, err := f.RefreshDue(card, reviews, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.State != Review {
+			t.Errorf("expected State=Review, got=%v", result.State)
+		}
+	})
+
+	t.Run("empty reviews returns error", func(t *testing.T) {
+		_, err := f.RefreshDue(NewCard(), nil, time.Now())
+		if err == nil {
+			t.Fatal("expected error for empty reviews")
+		}
+	})
+
+	t.Run("manual rating returns error", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Manual, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+		}
+		_, err := f.RefreshDue(NewCard(), reviews, time.Now())
+		if err == nil {
+			t.Fatal("expected error for Manual rating")
+		}
+	})
+
+	t.Run("stability matches MemoryState", func(t *testing.T) {
+		reviews := []ReviewHistory{
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 13, 0, 0, 0, 0, time.UTC)},
+			{Rating: Good, Review: time.Date(2024, 9, 17, 0, 0, 0, 0, time.UTC)},
+		}
+		now := time.Date(2024, 10, 1, 0, 0, 0, 0, time.UTC)
+
+		result, err := f.RefreshDue(NewCard(), reviews, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		entries, err := ReviewHistoryToEntries(reviews)
+		if err != nil {
+			t.Fatalf("ReviewHistoryToEntries error: %v", err)
+		}
+		state, err := f.MemoryState(entries, nil)
+		if err != nil {
+			t.Fatalf("MemoryState error: %v", err)
+		}
+
+		if math.Abs(result.Stability-state.Stability) > 1e-10 {
+			t.Errorf("stability mismatch: RefreshDue=%.10f, MemoryState=%.10f", result.Stability, state.Stability)
+		}
+		if math.Abs(result.Difficulty-state.Difficulty) > 1e-10 {
+			t.Errorf("difficulty mismatch: RefreshDue=%.10f, MemoryState=%.10f", result.Difficulty, state.Difficulty)
+		}
+	})
+}

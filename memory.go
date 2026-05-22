@@ -3,6 +3,7 @@ package fsrs
 import (
 	"fmt"
 	"math"
+	"time"
 )
 
 func (f *FSRS) computeMemoryStates(history ReviewEntries, startingState *MemoryState, returnAll bool) ([]MemoryState, error) {
@@ -107,6 +108,51 @@ func (f *FSRS) MemoryStateFromSM2(easeFactor, interval, sm2Retention float64) (*
 		Stability:  constrainStability(stability),
 		Difficulty: constrainDifficulty(difficulty),
 	}, nil
+}
+
+// RefreshDue recalculates the due date and memory state for a card using its
+// review history. This is the simpler alternative to [FSRS.Reschedule] for the
+// common case of refreshing a card's schedule after parameters have been
+// updated, without needing full [Card]/[ReviewLog] reconstruction or manual
+// rating handling.
+//
+// Internally, it converts timestamp-based reviews to deltaT-based entries via
+// [ReviewHistoryToEntries], replays them through [FSRS.MemoryState] to
+// reconstruct the card's stability and difficulty, computes the new interval
+// from the resulting stability, and returns the card with updated [Card.Due],
+// [Card.Stability], [Card.Difficulty], [Card.ScheduledDays], and
+// [Card.LastReview]. The card's [Card.Reps], [Card.Lapses], [Card.State], and
+// [Card.RemainingSteps] are preserved.
+//
+// Unlike [FSRS.Reschedule], this function does not apply interval fuzz, does
+// not support [Manual] ratings, and does not return individual [ReviewLog]
+// entries — it focuses solely on producing an updated [Card] for the refreshed
+// schedule.
+//
+// The input reviews must be in chronological order and must not contain
+// [Manual] ratings. Returns an error if the review history is empty, contains
+// Manual ratings, or has other validation issues.
+func (f *FSRS) RefreshDue(card Card, reviews []ReviewHistory, now time.Time) (Card, error) {
+	entries, err := ReviewHistoryToEntries(reviews)
+	if err != nil {
+		return Card{}, err
+	}
+
+	state, err := f.MemoryState(entries, nil)
+	if err != nil {
+		return Card{}, err
+	}
+
+	card.Stability = state.Stability
+	card.Difficulty = state.Difficulty
+	card.LastReview = now
+
+	raw := f.nextIntervalRaw(state.Stability)
+	interval := math.Max(1, math.Min(math.Round(raw), f.MaximumInterval))
+	card.ScheduledDays = uint64(interval)
+	card.Due = now.Add(daysToDuration(interval, f.MaximumInterval))
+
+	return card, nil
 }
 
 // ReviewHistoryToEntries converts a timestamp-based review history into
