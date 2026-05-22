@@ -61,10 +61,10 @@ func (f *FSRS) Next(card Card, now time.Time, grade Rating) (SchedulingInfo, err
 	return info, nil
 }
 
-// GetRetrievability returns the current retrievability (probability of recall) for
+// Retrievability returns the current retrievability (probability of recall) for
 // the given card at the specified time. Returns 0 for New cards or cards with no
 // LastReview. Returns an error if the card state or stability is invalid.
-func (f *FSRS) GetRetrievability(card Card, now time.Time) (float64, error) {
+func (f *FSRS) Retrievability(card Card, now time.Time) (float64, error) {
 	if card.State == New || card.LastReview.IsZero() {
 		return 0, nil
 	}
@@ -76,4 +76,9 @@ func (f *FSRS) GetRetrievability(card Card, now time.Time) (float64, error) {
 	}
 	elapsedDays := math.Max(0, dateDiffRaw(card.LastReview, now))
 	return f.Parameters.ForgettingCurve(elapsedDays, card.Stability), nil
+}
+
+// Deprecated: Use Retrievability instead.
+func (f *FSRS) GetRetrievability(card Card, now time.Time) (float64, error) {
+	return f.Retrievability(card, now)
 }

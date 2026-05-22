@@ -18,7 +18,7 @@ func TestBasicSchedulerExample(t *testing.T) {
 	fsrs := NewFSRS(p)
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
-	var ivlList []uint64
+	var intervalList []uint64
 	var stateList []State
 	schedulingCards, err := fsrs.Repeat(card, now)
 	if err != nil {
@@ -32,7 +32,7 @@ func TestBasicSchedulerExample(t *testing.T) {
 	for i := range ratings {
 		rating = ratings[i]
 		card = schedulingCards[rating].Card
-		ivlList = append(ivlList, card.ScheduledDays)
+		intervalList = append(intervalList, card.ScheduledDays)
 		revlog = schedulingCards[rating].ReviewLog
 		stateList = append(stateList, revlog.State)
 		now = card.Due
@@ -42,9 +42,9 @@ func TestBasicSchedulerExample(t *testing.T) {
 		}
 	}
 
-	wantIvlList := []uint64{0, 2, 11, 46, 163, 498, 0, 0, 2, 4, 7, 12, 21}
-	if !reflect.DeepEqual(ivlList, wantIvlList) {
-		t.Errorf("expected:%v, got:%v", wantIvlList, ivlList)
+	wantIntervalList := []uint64{0, 2, 11, 46, 163, 498, 0, 0, 2, 4, 7, 12, 21}
+	if !reflect.DeepEqual(intervalList, wantIntervalList) {
+		t.Errorf("expected:%v, got:%v", wantIntervalList, intervalList)
 	}
 	wantStateList := []State{New, Learning, Review, Review, Review, Review, Review, Relearning, Relearning, Review, Review, Review, Review}
 	if !reflect.DeepEqual(stateList, wantStateList) {
@@ -62,12 +62,12 @@ func TestBasicSchedulerMemoState(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var ratings = []Rating{Again, Good, Good, Good, Good, Good}
-	var ivlList = []uint64{0, 0, 1, 3, 8, 21}
+	var intervalList = []uint64{0, 0, 1, 3, 8, 21}
 	var rating Rating
 	for i := range ratings {
 		rating = ratings[i]
 		card = schedulingCards[rating].Card
-		now = now.Add(time.Duration(ivlList[i]) * 24 * time.Hour)
+		now = now.Add(time.Duration(intervalList[i]) * 24 * time.Hour)
 		schedulingCards, err = fsrs.Repeat(card, now)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -210,14 +210,14 @@ func TestNextStatesMemoryStateLongTerm(t *testing.T) {
 func TestNextInterval(t *testing.T) {
 	p := DefaultParam()
 	fsrs := NewFSRS(p)
-	var ivlList []float64
+	var intervalList []float64
 	for i := 1; i <= 10; i++ {
 		fsrs.RequestRetention = float64(i) / 10
-		ivlList = append(ivlList, fsrs.nextInterval(1, 0))
+		intervalList = append(intervalList, fsrs.nextInterval(1, 0))
 	}
-	wantIvlList := []float64{36500, 34793, 2508, 387, 90, 27, 9, 3, 1, 1}
-	if !reflect.DeepEqual(ivlList, wantIvlList) {
-		t.Errorf("expected:%v, got:%v", wantIvlList, ivlList)
+	wantIntervalList := []float64{36500, 34793, 2508, 387, 90, 27, 9, 3, 1, 1}
+	if !reflect.DeepEqual(intervalList, wantIntervalList) {
+		t.Errorf("expected:%v, got:%v", wantIntervalList, intervalList)
 	}
 }
 
@@ -225,39 +225,39 @@ func TestNextIntervalRaw(t *testing.T) {
 	p := DefaultParam()
 	fsrs := NewFSRS(p)
 
-	ivl := fsrs.nextIntervalRaw(0.212)
-	if ivl >= 1.0 {
-		t.Errorf("nextIntervalRaw(0.212) should return < 1 day, got=%v", ivl)
+	interval := fsrs.nextIntervalRaw(0.212)
+	if interval >= 1.0 {
+		t.Errorf("nextIntervalRaw(0.212) should return < 1 day, got=%v", interval)
 	}
-	if ivl <= 0 {
-		t.Errorf("nextIntervalRaw(0.212) should return > 0, got=%v", ivl)
-	}
-
-	ivl = fsrs.nextIntervalRaw(1.0)
-	if ivl < 0.99 {
-		t.Errorf("nextIntervalRaw(1.0) should return ~1 day, got=%v", ivl)
+	if interval <= 0 {
+		t.Errorf("nextIntervalRaw(0.212) should return > 0, got=%v", interval)
 	}
 
-	ivl = fsrs.nextIntervalRaw(0.001)
-	if ivl >= 0.5 {
-		t.Errorf("nextIntervalRaw(0.001) should return < 0.5 days, got=%v", ivl)
+	interval = fsrs.nextIntervalRaw(1.0)
+	if interval < 0.99 {
+		t.Errorf("nextIntervalRaw(1.0) should return ~1 day, got=%v", interval)
 	}
 
-	ivl = fsrs.nextIntervalRaw(sMin)
-	if ivl <= 0 || math.IsNaN(ivl) || math.IsInf(ivl, 0) {
-		t.Errorf("nextIntervalRaw(sMin) should return finite positive, got=%v", ivl)
+	interval = fsrs.nextIntervalRaw(0.001)
+	if interval >= 0.5 {
+		t.Errorf("nextIntervalRaw(0.001) should return < 0.5 days, got=%v", interval)
 	}
 
-	ivl = fsrs.nextIntervalRaw(sMax)
-	if ivl <= 0 || math.IsNaN(ivl) || math.IsInf(ivl, 0) {
-		t.Errorf("nextIntervalRaw(sMax) should return finite positive, got=%v", ivl)
+	interval = fsrs.nextIntervalRaw(sMin)
+	if interval <= 0 || math.IsNaN(interval) || math.IsInf(interval, 0) {
+		t.Errorf("nextIntervalRaw(sMin) should return finite positive, got=%v", interval)
+	}
+
+	interval = fsrs.nextIntervalRaw(sMax)
+	if interval <= 0 || math.IsNaN(interval) || math.IsInf(interval, 0) {
+		t.Errorf("nextIntervalRaw(sMax) should return finite positive, got=%v", interval)
 	}
 
 	decay, factor := p.decayAndFactor()
 	boundaryStab := 0.5 * factor / (math.Pow(p.RequestRetention, 1/decay) - 1)
-	ivl = fsrs.nextIntervalRaw(boundaryStab)
-	if math.Abs(ivl-0.5) > 1e-9 {
-		t.Errorf("nextIntervalRaw at boundary stability should ≈ 0.5, got=%v", ivl)
+	interval = fsrs.nextIntervalRaw(boundaryStab)
+	if math.Abs(interval-0.5) > 1e-9 {
+		t.Errorf("nextIntervalRaw at boundary stability should ≈ 0.5, got=%v", interval)
 	}
 }
 
@@ -268,9 +268,9 @@ func TestLongTermScheduler(t *testing.T) {
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
 	ratings := []Rating{Good, Good, Good, Good, Good, Good, Again, Again, Good, Good, Good, Good, Good}
-	ivlHistory := []uint64{}
-	sHistory := []float64{}
-	dHistory := []float64{}
+	intervalHistory := []uint64{}
+	stabilityHistory := []float64{}
+	difficultyHistory := []float64{}
 	for _, rating := range ratings {
 		schedCards, err := fsrs.Repeat(card, now)
 		if err != nil {
@@ -286,22 +286,22 @@ func TestLongTermScheduler(t *testing.T) {
 		}
 
 		card = record.Card
-		ivlHistory = append(ivlHistory, (card.ScheduledDays))
-		sHistory = append(sHistory, roundFloat(card.Stability, 4))
-		dHistory = append(dHistory, roundFloat(card.Difficulty, 4))
+		intervalHistory = append(intervalHistory, (card.ScheduledDays))
+		stabilityHistory = append(stabilityHistory, roundFloat(card.Stability, 4))
+		difficultyHistory = append(difficultyHistory, roundFloat(card.Difficulty, 4))
 		now = card.Due
 	}
-	wantIvlHistory := []uint64{3, 14, 57, 196, 586, 1559, 10, 1, 3, 5, 9, 15, 25}
-	if !reflect.DeepEqual(ivlHistory, wantIvlHistory) {
-		t.Errorf("expected:%v, got:%v", wantIvlHistory, ivlHistory)
+	wantIntervalHistory := []uint64{3, 14, 57, 196, 586, 1559, 10, 1, 3, 5, 9, 15, 25}
+	if !reflect.DeepEqual(intervalHistory, wantIntervalHistory) {
+		t.Errorf("expected:%v, got:%v", wantIntervalHistory, intervalHistory)
 	}
-	wantSHistory := []float64{2.3065, 13.8269, 56.9567, 196.2353, 586.4835, 1559.3567, 9.8832, 1.3527, 2.392, 4.8562, 8.7624, 15.186, 25.1362}
-	if !reflect.DeepEqual(sHistory, wantSHistory) {
-		t.Errorf("expected:%v, got:%v", wantSHistory, sHistory)
+	wantStabilityHistory := []float64{2.3065, 13.8269, 56.9567, 196.2353, 586.4835, 1559.3567, 9.8832, 1.3527, 2.392, 4.8562, 8.7624, 15.186, 25.1362}
+	if !reflect.DeepEqual(stabilityHistory, wantStabilityHistory) {
+		t.Errorf("expected:%v, got:%v", wantStabilityHistory, stabilityHistory)
 	}
-	wantDHistory := []float64{2.1181, 2.1112, 2.1043, 2.0975, 2.0906, 2.0837, 7.3832, 9.1251, 9.1112, 9.0973, 9.0835, 9.0696, 9.0558}
-	if !reflect.DeepEqual(dHistory, wantDHistory) {
-		t.Errorf("expected:%v, got:%v", wantDHistory, dHistory)
+	wantDifficultyHistory := []float64{2.1181, 2.1112, 2.1043, 2.0975, 2.0906, 2.0837, 7.3832, 9.1251, 9.1112, 9.0973, 9.0835, 9.0696, 9.0558}
+	if !reflect.DeepEqual(difficultyHistory, wantDifficultyHistory) {
+		t.Errorf("expected:%v, got:%v", wantDifficultyHistory, difficultyHistory)
 	}
 }
 
@@ -812,12 +812,12 @@ func TestNewFSRSW19EnableShortTerm(t *testing.T) {
 	})
 }
 
-func TestGetRetrievability(t *testing.T) {
+func TestRetrievability(t *testing.T) {
 	retrievabilityList := []float64{}
 	fsrs := NewFSRS(DefaultParam())
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
-	r, err := fsrs.GetRetrievability(card, now)
+	r, err := fsrs.Retrievability(card, now)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -831,7 +831,7 @@ func TestGetRetrievability(t *testing.T) {
 			card = rec.Card
 		}
 		now = card.Due
-		r, err := fsrs.GetRetrievability(card, now)
+		r, err := fsrs.Retrievability(card, now)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -840,6 +840,24 @@ func TestGetRetrievability(t *testing.T) {
 	wantRetrievabilityList := []float64{0, 1, 0.9095, 0.8998}
 	if !reflect.DeepEqual(retrievabilityList, wantRetrievabilityList) {
 		t.Errorf("expected:%v, got:%v", wantRetrievabilityList, retrievabilityList)
+	}
+}
+
+func TestGetRetrievabilityBackwardCompat(t *testing.T) {
+	f := NewFSRS(DefaultParam())
+	card := Card{LastReview: time.Now().Add(-24 * time.Hour), Stability: 1, State: Review}
+	now := card.LastReview.Add(24 * time.Hour)
+
+	got, err := f.GetRetrievability(card, now)
+	if err != nil {
+		t.Fatalf("deprecated GetRetrievability should still work: %v", err)
+	}
+	expected, err := f.Retrievability(card, now)
+	if err != nil {
+		t.Fatalf("Retrievability error: %v", err)
+	}
+	if got != expected {
+		t.Errorf("GetRetrievability = %v, want %v (should match Retrievability)", got, expected)
 	}
 }
 
@@ -868,7 +886,7 @@ func TestDateDiffRawFullDay(t *testing.T) {
 	}
 }
 
-func TestGetRetrievabilityRawVsCalendar(t *testing.T) {
+func TestRetrievabilityRawVsCalendar(t *testing.T) {
 	f := NewFSRS(DefaultParam())
 	card := Card{
 		Stability:  5.0,
@@ -879,16 +897,16 @@ func TestGetRetrievabilityRawVsCalendar(t *testing.T) {
 
 	now := time.Date(2032, 1, 16, 1, 0, 0, 0, time.UTC)
 
-	r, err := f.GetRetrievability(card, now)
+	r, err := f.Retrievability(card, now)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if r != 1.0 {
-		t.Errorf("GetRetrievability(midnight crossover, 2h) = %v, want 1.0 (t=0, no decay)", r)
+		t.Errorf("Retrievability(midnight crossover, 2h) = %v, want 1.0 (t=0, no decay)", r)
 	}
 }
 
-func TestGetRetrievabilityReversedDates(t *testing.T) {
+func TestRetrievabilityReversedDates(t *testing.T) {
 	f := NewFSRS(DefaultParam())
 	card := Card{
 		Stability:  5.0,
@@ -899,9 +917,9 @@ func TestGetRetrievabilityReversedDates(t *testing.T) {
 
 	now := time.Date(2032, 1, 15, 12, 0, 0, 0, time.UTC)
 
-	r, _ := f.GetRetrievability(card, now)
+	r, _ := f.Retrievability(card, now)
 	if r != 1.0 {
-		t.Errorf("GetRetrievability(reversed dates) = %v, want 1.0 (t clamped to 0)", r)
+		t.Errorf("Retrievability(reversed dates) = %v, want 1.0 (t clamped to 0)", r)
 	}
 }
 
@@ -974,7 +992,7 @@ func BenchmarkNext(b *testing.B) {
 	}
 }
 
-func BenchmarkGetRetrievability(b *testing.B) {
+func BenchmarkRetrievability(b *testing.B) {
 	f := NewFSRS(DefaultParam())
 	card := NewCard()
 	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
@@ -986,7 +1004,7 @@ func BenchmarkGetRetrievability(b *testing.B) {
 		card = rec.Card
 	}
 	for b.Loop() {
-		_, _ = f.GetRetrievability(card, now)
+		_, _ = f.Retrievability(card, now)
 	}
 }
 
@@ -1051,7 +1069,7 @@ func BenchmarkNextState(b *testing.B) {
 	}
 }
 
-func BenchmarkCurrentRetrievability(b *testing.B) {
+func BenchmarkForgettingCurve(b *testing.B) {
 	p := DefaultParam()
 	for b.Loop() {
 		p.ForgettingCurve(21, 51.344814)
@@ -1442,19 +1460,19 @@ func TestHardInterpolation(t *testing.T) {
 	p := DefaultParam()
 
 	p.LearningSteps = []float64{1}
-	hard := p.hardDelayMinutes(p.LearningSteps)
+	hard := hardDelayMinutes(p.LearningSteps)
 	if hard != 2 {
 		t.Errorf("Hard with 1 step [1]: expected 2, got=%v", hard)
 	}
 
 	p.LearningSteps = []float64{1, 10}
-	hard = p.hardDelayMinutes(p.LearningSteps)
+	hard = hardDelayMinutes(p.LearningSteps)
 	if hard != 6 {
 		t.Errorf("Hard with 2 steps [1,10]: expected 6, got=%v", hard)
 	}
 
 	p.LearningSteps = []float64{1, 10, 60}
-	hard = p.hardDelayMinutes(p.LearningSteps)
+	hard = hardDelayMinutes(p.LearningSteps)
 	if hard != 6 {
 		t.Errorf("Hard with 3 steps [1,10,60]: expected 6, got=%v", hard)
 	}
@@ -1795,44 +1813,44 @@ func TestGoodDelayMinutesBoundary(t *testing.T) {
 	p := DefaultParam()
 
 	p.LearningSteps = []float64{1, 10}
-	delay, ok := p.goodDelayMinutes(p.LearningSteps, 2)
+	delay, ok := goodDelayMinutes(p.LearningSteps, 2)
 	if !ok || delay != 10 {
 		t.Errorf("goodDelayMinutes([1,10], 2): expected (10, true), got=(%v, %v)", delay, ok)
 	}
 
-	delay, ok = p.goodDelayMinutes(p.LearningSteps, 1)
+	delay, ok = goodDelayMinutes(p.LearningSteps, 1)
 	if ok {
 		t.Errorf("goodDelayMinutes([1,10], 1): expected graduation (0, false), got=(%v, %v)", delay, ok)
 	}
 
-	delay, ok = p.goodDelayMinutes(p.LearningSteps, 0)
+	delay, ok = goodDelayMinutes(p.LearningSteps, 0)
 	if ok {
 		t.Errorf("goodDelayMinutes([1,10], 0): expected (0, false), got=(%v, %v)", delay, ok)
 	}
 
-	delay, ok = p.goodDelayMinutes([]float64{}, 1)
+	delay, ok = goodDelayMinutes([]float64{}, 1)
 	if ok {
 		t.Errorf("goodDelayMinutes([], 1): expected (0, false), got=(%v, %v)", delay, ok)
 	}
 
 	p.LearningSteps = []float64{1}
-	delay, ok = p.goodDelayMinutes(p.LearningSteps, 1)
+	delay, ok = goodDelayMinutes(p.LearningSteps, 1)
 	if ok {
 		t.Errorf("goodDelayMinutes([1], 1): expected graduation (0, false), got=(%v, %v)", delay, ok)
 	}
 
 	p.LearningSteps = []float64{1, 10, 60}
-	delay, ok = p.goodDelayMinutes(p.LearningSteps, 3)
+	delay, ok = goodDelayMinutes(p.LearningSteps, 3)
 	if !ok || delay != 10 {
 		t.Errorf("goodDelayMinutes([1,10,60], 3): expected (10, true), got=(%v, %v)", delay, ok)
 	}
 
-	delay, ok = p.goodDelayMinutes(p.LearningSteps, 2)
+	delay, ok = goodDelayMinutes(p.LearningSteps, 2)
 	if !ok || delay != 60 {
 		t.Errorf("goodDelayMinutes([1,10,60], 2): expected (60, true), got=(%v, %v)", delay, ok)
 	}
 
-	delay, ok = p.goodDelayMinutes(p.LearningSteps, 1)
+	delay, ok = goodDelayMinutes(p.LearningSteps, 1)
 	if ok {
 		t.Errorf("goodDelayMinutes([1,10,60], 1): expected graduation (0, false), got=(%v, %v)", delay, ok)
 	}
@@ -1987,7 +2005,7 @@ func TestHardDelayMinutesIntegration(t *testing.T) {
 	if hardCard.State != Learning {
 		t.Errorf("Hard should be Learning, got=%v", hardCard.State)
 	}
-	expectedHardDelay := p.hardDelayMinutes(p.LearningSteps)
+	expectedHardDelay := hardDelayMinutes(p.LearningSteps)
 	expectedDue := now.Add(minutesToDuration(expectedHardDelay))
 	if hardCard.Due.Sub(expectedDue).Abs() > time.Second {
 		t.Errorf("Hard Due should match hardDelayMinutes: due=%v expected=%v", hardCard.Due, expectedDue)
@@ -2737,22 +2755,22 @@ func TestReschedule(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		wantIvl := []uint64{0, 2, 16, 53}
-		for i, want := range wantIvl {
+		wantIntervals := []uint64{0, 2, 16, 53}
+		for i, want := range wantIntervals {
 			if got := result.Collections[i].Card.ScheduledDays; got != want {
 				t.Errorf("review %d: scheduled_days=%d, want=%d", i, got, want)
 			}
 		}
 
-		wantStab := []float64{2.3065, 2.3065, 16.1880, 52.7633}
-		for i, want := range wantStab {
+		wantStability := []float64{2.3065, 2.3065, 16.1880, 52.7633}
+		for i, want := range wantStability {
 			if got := roundFloat(result.Collections[i].Card.Stability, 4); got != want {
 				t.Errorf("review %d: stability=%.10f, want=%.4f", i, result.Collections[i].Card.Stability, want)
 			}
 		}
 
-		wantDiff := []float64{2.1181, 2.1112, 2.1043, 2.0975}
-		for i, want := range wantDiff {
+		wantDifficulty := []float64{2.1181, 2.1112, 2.1043, 2.0975}
+		for i, want := range wantDifficulty {
 			if got := roundFloat(result.Collections[i].Card.Difficulty, 4); got != want {
 				t.Errorf("review %d: difficulty=%.10f, want=%.4f", i, result.Collections[i].Card.Difficulty, want)
 			}
@@ -2784,15 +2802,15 @@ func TestReschedule(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		wantIvl := []uint64{3, 3, 16, 53}
-		for i, want := range wantIvl {
+		wantIntervals := []uint64{3, 3, 16, 53}
+		for i, want := range wantIntervals {
 			if got := result.Collections[i].Card.ScheduledDays; got != want {
 				t.Errorf("review %d: scheduled_days=%d, want=%d", i, got, want)
 			}
 		}
 
-		wantStab := []float64{2.3065, 2.3065, 16.1880, 52.7633}
-		for i, want := range wantStab {
+		wantStability := []float64{2.3065, 2.3065, 16.1880, 52.7633}
+		for i, want := range wantStability {
 			if got := roundFloat(result.Collections[i].Card.Stability, 4); got != want {
 				t.Errorf("review %d: stability=%.10f, want=%.4f", i, result.Collections[i].Card.Stability, want)
 			}
@@ -3557,20 +3575,20 @@ func TestApplyFuzz(t *testing.T) {
 	t.Run("fuzz result within expected range at boundary 2.5", func(t *testing.T) {
 		p.EnableFuzz = true
 		p.seed = "test-seed-2.5"
-		minIvl, maxIvl := getFuzzRange(3, 0, p.MaximumInterval)
+		minInterval, maxInterval := getFuzzRange(3, 0, p.MaximumInterval)
 		got := p.ApplyFuzz(2.5, 0, true)
-		if got < float64(minIvl) || got > float64(maxIvl) {
-			t.Errorf("expected result in [%d, %d], got=%v", minIvl, maxIvl, got)
+		if got < float64(minInterval) || got > float64(maxInterval) {
+			t.Errorf("expected result in [%d, %d], got=%v", minInterval, maxInterval, got)
 		}
 	})
 
 	t.Run("fuzz result within expected range for interval 3", func(t *testing.T) {
 		p.EnableFuzz = true
 		p.seed = "test-seed-3"
-		minIvl, maxIvl := getFuzzRange(3, 0, p.MaximumInterval)
+		minInterval, maxInterval := getFuzzRange(3, 0, p.MaximumInterval)
 		got := p.ApplyFuzz(3.0, 0, true)
-		if got < float64(minIvl) || got > float64(maxIvl) {
-			t.Errorf("expected result in [%d, %d], got=%v", minIvl, maxIvl, got)
+		if got < float64(minInterval) || got > float64(maxInterval) {
+			t.Errorf("expected result in [%d, %d], got=%v", minInterval, maxInterval, got)
 		}
 	})
 
@@ -3588,12 +3606,12 @@ func TestApplyFuzz(t *testing.T) {
 		p.EnableFuzz = true
 		p.MaximumInterval = 36500
 		p.seed = "test-seed-elapsed"
-		ivl := 5.0
+		interval := 5.0
 		elapsedDays := 4.0
-		minIvl, maxIvl := getFuzzRange(ivl, elapsedDays, p.MaximumInterval)
-		got := p.ApplyFuzz(ivl, elapsedDays, true)
-		if got < float64(minIvl) || got > float64(maxIvl) {
-			t.Errorf("expected result in [%d, %d], got=%v", minIvl, maxIvl, got)
+		minInterval, maxInterval := getFuzzRange(interval, elapsedDays, p.MaximumInterval)
+		got := p.ApplyFuzz(interval, elapsedDays, true)
+		if got < float64(minInterval) || got > float64(maxInterval) {
+			t.Errorf("expected result in [%d, %d], got=%v", minInterval, maxInterval, got)
 		}
 	})
 
@@ -3612,13 +3630,13 @@ func TestApplyFuzz(t *testing.T) {
 		p.EnableFuzz = true
 		p.MaximumInterval = 36500
 		p.seed = "test-seed-large"
-		minIvl, maxIvl := getFuzzRange(100.0, 0, p.MaximumInterval)
+		minInterval, maxInterval := getFuzzRange(100.0, 0, p.MaximumInterval)
 		got := p.ApplyFuzz(100.0, 0, true)
-		if got < float64(minIvl) || got > float64(maxIvl) {
-			t.Errorf("expected result in [%d, %d], got=%v", minIvl, maxIvl, got)
+		if got < float64(minInterval) || got > float64(maxInterval) {
+			t.Errorf("expected result in [%d, %d], got=%v", minInterval, maxInterval, got)
 		}
-		if maxIvl > 36500 {
-			t.Errorf("expected maxIvl <= 36500, got=%d", maxIvl)
+		if maxInterval > 36500 {
+			t.Errorf("expected maxInterval <= 36500, got=%d", maxInterval)
 		}
 	})
 }
@@ -4133,13 +4151,13 @@ func TestRepeatInputValidation(t *testing.T) {
 	})
 }
 
-func TestGetRetrievabilityInputValidation(t *testing.T) {
+func TestRetrievabilityInputValidation(t *testing.T) {
 	f := NewFSRS(DefaultParam())
 	now := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	t.Run("New card returns 0 without error", func(t *testing.T) {
 		card := NewCard(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
-		r, err := f.GetRetrievability(card, now)
+		r, err := f.Retrievability(card, now)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -4150,7 +4168,7 @@ func TestGetRetrievabilityInputValidation(t *testing.T) {
 
 	t.Run("card with zero LastReview returns 0 without error", func(t *testing.T) {
 		card := Card{State: Review, Stability: 10.0, Difficulty: 5.0}
-		r, err := f.GetRetrievability(card, now)
+		r, err := f.Retrievability(card, now)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -4161,7 +4179,7 @@ func TestGetRetrievabilityInputValidation(t *testing.T) {
 
 	t.Run("invalid state returns error", func(t *testing.T) {
 		card := Card{State: State(99), Stability: 10.0, Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
-		_, err := f.GetRetrievability(card, now)
+		_, err := f.Retrievability(card, now)
 		if err == nil {
 			t.Fatal("expected error for invalid state")
 		}
@@ -4176,7 +4194,7 @@ func TestGetRetrievabilityInputValidation(t *testing.T) {
 
 	t.Run("NaN stability returns error", func(t *testing.T) {
 		card := Card{State: Review, Stability: math.NaN(), Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
-		_, err := f.GetRetrievability(card, now)
+		_, err := f.Retrievability(card, now)
 		if err == nil {
 			t.Fatal("expected error for NaN stability")
 		}
@@ -4191,7 +4209,7 @@ func TestGetRetrievabilityInputValidation(t *testing.T) {
 
 	t.Run("negative stability returns error", func(t *testing.T) {
 		card := Card{State: Review, Stability: -1.0, Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
-		_, err := f.GetRetrievability(card, now)
+		_, err := f.Retrievability(card, now)
 		if err == nil {
 			t.Fatal("expected error for negative stability")
 		}
@@ -4206,7 +4224,7 @@ func TestGetRetrievabilityInputValidation(t *testing.T) {
 
 	t.Run("valid Review card succeeds", func(t *testing.T) {
 		card := Card{State: Review, Stability: 10.0, Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
-		r, err := f.GetRetrievability(card, now)
+		r, err := f.Retrievability(card, now)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -4217,7 +4235,7 @@ func TestGetRetrievabilityInputValidation(t *testing.T) {
 
 	t.Run("zero stability returns error", func(t *testing.T) {
 		card := Card{State: Review, Stability: 0, Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
-		_, err := f.GetRetrievability(card, now)
+		_, err := f.Retrievability(card, now)
 		if err == nil {
 			t.Fatal("expected error for zero stability")
 		}
@@ -4232,7 +4250,7 @@ func TestGetRetrievabilityInputValidation(t *testing.T) {
 
 	t.Run("valid Learning card succeeds", func(t *testing.T) {
 		card := Card{State: Learning, Stability: 2.0, Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
-		r, err := f.GetRetrievability(card, now)
+		r, err := f.Retrievability(card, now)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -4243,7 +4261,7 @@ func TestGetRetrievabilityInputValidation(t *testing.T) {
 
 	t.Run("valid Relearning card succeeds", func(t *testing.T) {
 		card := Card{State: Relearning, Stability: 2.0, Difficulty: 5.0, LastReview: now.Add(-24 * time.Hour)}
-		r, err := f.GetRetrievability(card, now)
+		r, err := f.Retrievability(card, now)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -4525,34 +4543,34 @@ func TestValidateRatingDirect(t *testing.T) {
 
 func TestGetFuzzRange(t *testing.T) {
 	t.Run("small interval uses minimal delta", func(t *testing.T) {
-		minIvl, maxIvl := getFuzzRange(3, 0, 36500)
-		if minIvl > maxIvl {
-			t.Errorf("minIvl > maxIvl: %d > %d", minIvl, maxIvl)
+		minInterval, maxInterval := getFuzzRange(3, 0, 36500)
+		if minInterval > maxInterval {
+			t.Errorf("minInterval > maxInterval: %d > %d", minInterval, maxInterval)
 		}
-		if minIvl < 2 {
-			t.Errorf("expected minIvl >= 2, got=%d", minIvl)
+		if minInterval < 2 {
+			t.Errorf("expected minInterval >= 2, got=%d", minInterval)
 		}
 	})
 
 	t.Run("clamped by maximum interval", func(t *testing.T) {
-		_, maxIvl := getFuzzRange(100000, 0, 10)
-		if maxIvl > 10 {
-			t.Errorf("expected maxIvl <= 10, got=%d", maxIvl)
+		_, maxInterval := getFuzzRange(100000, 0, 10)
+		if maxInterval > 10 {
+			t.Errorf("expected maxInterval <= 10, got=%d", maxInterval)
 		}
 	})
 
 	t.Run("elapsed days floor when interval exceeds elapsed", func(t *testing.T) {
-		minIvl, _ := getFuzzRange(5, 4, 36500)
-		if minIvl < 5 {
-			t.Errorf("expected minIvl >= 5 (elapsedDays+1), got=%d", minIvl)
+		minInterval, _ := getFuzzRange(5, 4, 36500)
+		if minInterval < 5 {
+			t.Errorf("expected minInterval >= 5 (elapsedDays+1), got=%d", minInterval)
 		}
 	})
 
 	t.Run("min never exceeds max", func(t *testing.T) {
 		for _, tc := range []struct {
-			ivl     float64
-			elapsed float64
-			maxIvl  float64
+		interval    float64
+		elapsed float64
+		maxInterval float64
 		}{
 			{2.5, 0, 36500},
 			{7.0, 0, 36500},
@@ -4560,10 +4578,39 @@ func TestGetFuzzRange(t *testing.T) {
 			{5.0, 10, 36500},
 			{3.0, 0, 2},
 		} {
-			minIvl, maxIvl := getFuzzRange(tc.ivl, tc.elapsed, tc.maxIvl)
-			if minIvl > maxIvl {
-				t.Errorf("ivl=%v elapsed=%v maxIvl=%v: minIvl=%d > maxIvl=%d", tc.ivl, tc.elapsed, tc.maxIvl, minIvl, maxIvl)
+			minInterval, maxInterval := getFuzzRange(tc.interval, tc.elapsed, tc.maxInterval)
+			if minInterval > maxInterval {
+				t.Errorf("interval=%v elapsed=%v maxInterval=%v: minInterval=%d > maxInterval=%d", tc.interval, tc.elapsed, tc.maxInterval, minInterval, maxInterval)
 			}
+		}
+	})
+}
+
+func TestFuzzRanges(t *testing.T) {
+	ranges := FuzzRanges()
+
+	if len(ranges) != 3 {
+		t.Fatalf("expected 3 fuzz ranges, got %d", len(ranges))
+	}
+
+	expected := []fuzzRange{
+		{Start: 2.5, End: 7.0, Factor: 0.15},
+		{Start: 7.0, End: 20.0, Factor: 0.10},
+		{Start: 20.0, End: math.Inf(1), Factor: 0.05},
+	}
+
+	for i, r := range ranges {
+		if r.Start != expected[i].Start || r.End != expected[i].End || r.Factor != expected[i].Factor {
+			t.Errorf("range[%d] got={%.2f,%.2f,%.2f} want={%.2f,%.2f,%.2f}",
+				i, r.Start, r.End, r.Factor, expected[i].Start, expected[i].End, expected[i].Factor)
+		}
+	}
+
+	t.Run("defensive copy", func(t *testing.T) {
+		ranges2 := FuzzRanges()
+		ranges[0].Start = 999
+		if ranges2[0].Start == 999 {
+			t.Error("mutating returned slice should not affect internal state")
 		}
 	})
 }
@@ -4585,6 +4632,18 @@ func TestConvertV45WeightsParity(t *testing.T) {
 	for i := 0; i < 21; i++ {
 		if math.Abs(w[i]-expected[i]) > tolerance {
 			t.Errorf("W[%d]: expected ≈ %v, got %v", i, expected[i], w[i])
+		}
+	}
+}
+
+func TestDefaultWeights(t *testing.T) {
+	w := DefaultWeights()
+	if len(w) != 21 {
+		t.Fatalf("expected 21 weights, got %d", len(w))
+	}
+	for i, val := range w {
+		if math.IsNaN(val) || math.IsInf(val, 0) {
+			t.Errorf("W[%d]: expected finite, got %v", i, val)
 		}
 	}
 }
@@ -4747,10 +4806,10 @@ func TestConvertV45WeightsProducesValidFSRS(t *testing.T) {
 		t.Errorf("expected 4 scheduling cards, got %d", len(result))
 	}
 
-	// Verify GetRetrievability works with converted weights
-	_, err = f.GetRetrievability(card, now)
+	// Verify Retrievability works with converted weights
+	_, err = f.Retrievability(card, now)
 	if err != nil {
-		t.Errorf("GetRetrievability should work with converted weights: %v", err)
+		t.Errorf("Retrievability should work with converted weights: %v", err)
 	}
 }
 
@@ -4914,5 +4973,27 @@ func TestConvertV5Weights(t *testing.T) {
 	}
 	if w[20] != 0.5 {
 		t.Errorf("W[20]: expected 0.5, got %v", w[20])
+	}
+}
+
+func TestDefaultLearningSteps(t *testing.T) {
+	steps := DefaultLearningSteps()
+	if want := []float64{1, 10}; !reflect.DeepEqual(steps, want) {
+		t.Errorf("expected %v, got %v", want, steps)
+	}
+	steps[0] = 999
+	if fresh := DefaultLearningSteps(); fresh[0] == 999 {
+		t.Error("mutating returned slice affected future calls")
+	}
+}
+
+func TestDefaultRelearningSteps(t *testing.T) {
+	steps := DefaultRelearningSteps()
+	if want := []float64{10}; !reflect.DeepEqual(steps, want) {
+		t.Errorf("expected %v, got %v", want, steps)
+	}
+	steps[0] = 999
+	if fresh := DefaultRelearningSteps(); fresh[0] == 999 {
+		t.Error("mutating returned slice affected future calls")
 	}
 }
