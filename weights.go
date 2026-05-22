@@ -43,14 +43,21 @@ func ConvertV5Weights(v5 [19]float64) Weights {
 
 const fsrs5DefaultDecay = 0.5
 
+func validateFiniteWeights(weights []float64) error {
+	for _, val := range weights {
+		if math.IsNaN(val) || math.IsInf(val, 0) {
+			return ErrInvalidWeightsValue
+		}
+	}
+	return nil
+}
+
 // ConvertV45Weights converts FSRS v4.5 [17]float64 weights to v6 [21]float64 weights.
 // Returns an error if any input parameter is non-finite (NaN or Inf), or if the converted
 // weights are non-finite.
 func ConvertV45Weights(v45 [17]float64) (Weights, error) {
-	for _, val := range v45 {
-		if math.IsNaN(val) || math.IsInf(val, 0) {
-			return Weights{}, ErrInvalidWeightsValue
-		}
+	if err := validateFiniteWeights(v45[:]); err != nil {
+		return Weights{}, err
 	}
 
 	var w Weights
@@ -66,10 +73,8 @@ func ConvertV45Weights(v45 [17]float64) (Weights, error) {
 	w[19] = 0.0
 	w[20] = fsrs5DefaultDecay
 
-	for _, val := range w {
-		if math.IsNaN(val) || math.IsInf(val, 0) {
-			return Weights{}, ErrInvalidWeightsValue
-		}
+	if err := validateFiniteWeights(w[:]); err != nil {
+		return Weights{}, err
 	}
 
 	return w, nil
@@ -85,23 +90,19 @@ func MigrateWeights(weights []float64) (Weights, error) {
 		copy(v45[:], weights)
 		return ConvertV45Weights(v45)
 	case 19:
-		for _, val := range weights {
-			if math.IsNaN(val) || math.IsInf(val, 0) {
-				return Weights{}, ErrInvalidWeightsValue
-			}
+		if err := validateFiniteWeights(weights); err != nil {
+			return Weights{}, err
 		}
 		var v5 [19]float64
 		copy(v5[:], weights)
 		w := ConvertV5Weights(v5)
 		return w, nil
 	case 21:
-		var w Weights
-		for i, val := range weights {
-			if math.IsNaN(val) || math.IsInf(val, 0) {
-				return Weights{}, ErrInvalidWeightsValue
-			}
-			w[i] = val
+		if err := validateFiniteWeights(weights); err != nil {
+			return Weights{}, err
 		}
+		var w Weights
+		copy(w[:], weights)
 		return w, nil
 	default:
 		return Weights{}, ErrInvalidWeightsLength
