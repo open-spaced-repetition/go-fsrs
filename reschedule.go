@@ -11,6 +11,11 @@ import (
 // decisions produced during replay and an optional reschedule item that
 // captures any change in due date relative to the original card.
 //
+// For most use cases — refreshing a card's schedule after parameters have been
+// updated — consider using [FSRS.RefreshDue] instead. It provides a simpler,
+// single-call API without the complexity of RescheduleOptions, Manual
+// ratings, or [ReviewLog] reconstruction.
+//
 // For graded-only histories where only the final stability and difficulty are
 // needed (without full Card/ReviewLog reconstruction), consider using
 // [FSRS.MemoryState] with [ReviewHistoryToEntries] for a lighter-weight
