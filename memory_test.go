@@ -351,11 +351,11 @@ func TestMemoryStateFromSM2(t *testing.T) {
 	f := NewFSRS(DefaultParam())
 
 	cases := []struct {
-		ease      float64
-		interval  float64
-		retention float64
-		wantStab  float64
-		wantDiff  float64
+		ease             float64
+		interval         float64
+		retention        float64
+		wantStability    float64
+		wantDifficulty   float64
 	}{
 		{2.5, 10.0, 0.9, 10.0, 6.9140563},
 		{2.5, 10.0, 0.8, 3.01572, 9.393428},
@@ -369,11 +369,11 @@ func TestMemoryStateFromSM2(t *testing.T) {
 			t.Errorf("case %d: unexpected error: %v", i, err)
 			continue
 		}
-		if math.Abs(result.Stability-tc.wantStab) > 1e-5 {
-			t.Errorf("case %d: stability mismatch: got %.10f, want %.10f", i, result.Stability, tc.wantStab)
+		if math.Abs(result.Stability-tc.wantStability) > 1e-5 {
+			t.Errorf("case %d: stability mismatch: got %.10f, want %.10f", i, result.Stability, tc.wantStability)
 		}
-		if math.Abs(result.Difficulty-tc.wantDiff) > 1e-5 {
-			t.Errorf("case %d: difficulty mismatch: got %.10f, want %.10f", i, result.Difficulty, tc.wantDiff)
+		if math.Abs(result.Difficulty-tc.wantDifficulty) > 1e-5 {
+			t.Errorf("case %d: difficulty mismatch: got %.10f, want %.10f", i, result.Difficulty, tc.wantDifficulty)
 		}
 	}
 }

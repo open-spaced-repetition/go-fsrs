@@ -31,14 +31,14 @@ func daysToDuration(days, maxDays float64) time.Duration {
 	return time.Duration(hours * float64(time.Hour))
 }
 
-func (p *Parameters) againDelayMinutes(steps []float64) float64 {
+func againDelayMinutes(steps []float64) float64 {
 	if len(steps) == 0 {
 		return 0
 	}
 	return steps[0]
 }
 
-func (p *Parameters) hardDelayMinutes(steps []float64) float64 {
+func hardDelayMinutes(steps []float64) float64 {
 	if len(steps) == 0 {
 		return 0
 	}
@@ -49,7 +49,7 @@ func (p *Parameters) hardDelayMinutes(steps []float64) float64 {
 	return math.Round((first + steps[1]) / 2)
 }
 
-func (p *Parameters) goodDelayMinutes(steps []float64, remaining int) (float64, bool) {
+func goodDelayMinutes(steps []float64, remaining int) (float64, bool) {
 	nextIdx := len(steps) - remaining + 1
 	if nextIdx < 0 || nextIdx >= len(steps) {
 		return 0, false

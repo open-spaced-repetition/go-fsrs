@@ -32,9 +32,9 @@ func (s *Scheduler) Preview() RecordLog {
 }
 
 func (s *Scheduler) Review(grade Rating) SchedulingInfo {
-	state := s.last.State
+	cardState := s.last.State
 	var item SchedulingInfo
-	switch state {
+	switch cardState {
 	case New:
 		item = s.impl.newState(grade)
 	case Learning, Relearning:
@@ -95,6 +95,20 @@ func (p *Parameters) scheduler(card Card, now time.Time) *Scheduler {
 	} else {
 		return p.NewLongTermScheduler(card, now)
 	}
+}
+
+func (s *Scheduler) nextDs(nextAgain, nextHard, nextGood, nextEasy *Card, difficulty, stability, retrievability float64) {
+	nextAgain.Difficulty = s.parameters.nextDifficulty(difficulty, Again)
+	nextAgain.Stability = s.parameters.nextForgetStability(difficulty, stability, retrievability)
+
+	nextHard.Difficulty = s.parameters.nextDifficulty(difficulty, Hard)
+	nextHard.Stability = s.parameters.nextRecallStability(difficulty, stability, retrievability, Hard)
+
+	nextGood.Difficulty = s.parameters.nextDifficulty(difficulty, Good)
+	nextGood.Stability = s.parameters.nextRecallStability(difficulty, stability, retrievability, Good)
+
+	nextEasy.Difficulty = s.parameters.nextDifficulty(difficulty, Easy)
+	nextEasy.Stability = s.parameters.nextRecallStability(difficulty, stability, retrievability, Easy)
 }
 
 func (s *Scheduler) elapsedDays() float64 {
