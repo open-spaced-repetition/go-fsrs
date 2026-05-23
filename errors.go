@@ -4,7 +4,7 @@ package fsrs
 type ErrorCode int
 
 const (
-	ErrCodeInvalidParameters ErrorCode = iota
+	_ ErrorCode = iota // reserved
 	ErrCodeInvalidInput
 	ErrCodeManualRating
 	ErrCodeInvalidRating
@@ -12,6 +12,10 @@ const (
 	ErrCodeManualDueRequired
 	ErrCodeInvalidWeightsLength
 	ErrCodeInvalidWeightsValue
+	ErrCodeInvalidDecay
+	ErrCodeInvalidRetention
+	ErrCodeInvalidMaxInterval
+	ErrCodeInvalidSteps
 )
 
 // Error represents a structured FSRS error with a machine-readable code
@@ -22,6 +26,7 @@ type Error struct {
 }
 
 // Error returns the human-readable error message. Implements the error interface.
+// It is nil-safe: a nil *Error returns "fsrs: <nil>" rather than panicking.
 func (e *Error) Error() string {
 	if e == nil {
 		return "fsrs: <nil>"
@@ -82,5 +87,29 @@ var (
 	ErrInvalidWeightsValue = &Error{
 		Code:    ErrCodeInvalidWeightsValue,
 		Message: "fsrs: invalid weights value: must be finite",
+	}
+
+	// ErrInvalidDecay is returned by Validate when W[20] (decay) is not positive.
+	ErrInvalidDecay = &Error{
+		Code:    ErrCodeInvalidDecay,
+		Message: "fsrs: invalid weight W[20]: must be > 0",
+	}
+
+	// ErrInvalidRetention is returned by Validate when RequestRetention is outside (0, 1].
+	ErrInvalidRetention = &Error{
+		Code:    ErrCodeInvalidRetention,
+		Message: "fsrs: invalid RequestRetention: must be in (0, 1]",
+	}
+
+	// ErrInvalidMaxInterval is returned by Validate when MaximumInterval is outside (0, 36500].
+	ErrInvalidMaxInterval = &Error{
+		Code:    ErrCodeInvalidMaxInterval,
+		Message: "fsrs: invalid MaximumInterval: must be in (0, 36500]",
+	}
+
+	// ErrInvalidSteps is returned by Validate when a learning or relearning step is invalid.
+	ErrInvalidSteps = &Error{
+		Code:    ErrCodeInvalidSteps,
+		Message: "fsrs: invalid steps: must be finite and >= 0",
 	}
 )

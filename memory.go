@@ -14,15 +14,15 @@ func (f *FSRS) computeMemoryStates(history ReviewEntries, startingState *MemoryS
 
 	var states []MemoryState
 	if returnAll {
-		states = make([]MemoryState, 0, len(history))
+		states = make([]MemoryState, 0, len(history)+1)
 	}
 
-	state := startingState
+	cur := startingState
 	if startingState != nil && returnAll {
-		states = append(states, *state)
+		states = append(states, *cur)
 	}
-	if state == nil {
-		state = &MemoryState{}
+	if cur == nil {
+		cur = &MemoryState{}
 	}
 
 	for _, review := range history {
@@ -34,27 +34,27 @@ func (f *FSRS) computeMemoryStates(history ReviewEntries, startingState *MemoryS
 		}
 
 		item := f.nextStateInner(&MemoryState{
-			Stability:  state.Stability,
-			Difficulty: state.Difficulty,
+			Stability:  cur.Stability,
+			Difficulty: cur.Difficulty,
 		}, f.RequestRetention, review.DeltaT, review.Rating, decay, factor)
 
-		state = &item.Memory
+		cur = &item.Memory
 		if returnAll {
-			states = append(states, *state)
+			states = append(states, *cur)
 		}
 	}
 
-	if math.IsNaN(state.Stability) || math.IsInf(state.Stability, 0) {
+	if math.IsNaN(cur.Stability) || math.IsInf(cur.Stability, 0) {
 		return nil, fmt.Errorf("fsrs: computed stability is not finite")
 	}
-	if math.IsNaN(state.Difficulty) || math.IsInf(state.Difficulty, 0) {
+	if math.IsNaN(cur.Difficulty) || math.IsInf(cur.Difficulty, 0) {
 		return nil, fmt.Errorf("fsrs: computed difficulty is not finite")
 	}
 
 	if returnAll {
 		return states, nil
 	}
-	return []MemoryState{*state}, nil
+	return []MemoryState{*cur}, nil
 }
 
 // MemoryState computes the final memory state by replaying the review history through the FSRS algorithm.

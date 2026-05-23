@@ -40,10 +40,9 @@ type ReviewLog struct {
 	RemainingSteps int       `json:"RemainingSteps"`
 }
 
-
 type SchedulingInfo struct {
-	Card      Card
-	ReviewLog ReviewLog
+	Card      Card      `json:"Card"`
+	ReviewLog ReviewLog `json:"ReviewLog"`
 }
 
 type RecordLog map[Rating]SchedulingInfo
@@ -59,8 +58,8 @@ const (
 	Easy
 )
 
-func (s Rating) String() string {
-	switch s {
+func (r Rating) String() string {
+	switch r {
 	case Manual:
 		return "Manual"
 	case Again:
@@ -83,6 +82,20 @@ const (
 	Review
 	Relearning
 )
+
+func (s State) String() string {
+	switch s {
+	case New:
+		return "New"
+	case Learning:
+		return "Learning"
+	case Review:
+		return "Review"
+	case Relearning:
+		return "Relearning"
+	}
+	return "unknown"
+}
 
 type MemoryState struct {
 	Stability  float64 `json:"Stability"`
@@ -113,29 +126,29 @@ type NextStates struct {
 // ReviewHistory represents a single past review event used to replay and
 // reconstruct card memory state via [FSRS.Reschedule].
 type ReviewHistory struct {
-	Rating        Rating
-	Review        time.Time
-	State         *State
-	Due           time.Time
-	Stability     float64
-	Difficulty    float64
-	ScheduledDays uint64
+	Rating        Rating    `json:"Rating"`
+	Review        time.Time `json:"Review"`
+	State         *State    `json:"State"`
+	Due           time.Time `json:"Due"`
+	Stability     float64   `json:"Stability"`
+	Difficulty    float64   `json:"Difficulty"`
+	ScheduledDays uint64    `json:"ScheduledDays"`
 }
 
 // RescheduleResult holds the output of [FSRS.Reschedule]: the full replay
 // history and an optional final reschedule item when the card needs updating.
 type RescheduleResult struct {
-	Collections    []SchedulingInfo
-	RescheduleItem *SchedulingInfo
+	Collections    []SchedulingInfo `json:"Collections"`
+	RescheduleItem *SchedulingInfo  `json:"RescheduleItem"`
 }
 
 // RescheduleOptions configures the behaviour of [FSRS.Reschedule].
 type RescheduleOptions struct {
-	SkipManual        bool
-	UpdateMemoryState bool
-	Now               time.Time
-	FirstDue          time.Time
-	SortReviews       bool
+	SkipManual        bool      `json:"SkipManual"`
+	UpdateMemoryState bool      `json:"UpdateMemoryState"`
+	Now               time.Time `json:"Now"`
+	FirstDue          time.Time `json:"FirstDue"`
+	SortReviews       bool      `json:"SortReviews"`
 }
 
 // StatePtr returns a pointer to the given State value. It is a convenience

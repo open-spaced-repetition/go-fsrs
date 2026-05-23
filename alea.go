@@ -6,13 +6,6 @@ import (
 	"time"
 )
 
-type state struct {
-	C  float64
-	S0 float64
-	S1 float64
-	S2 float64
-}
-
 type alea struct {
 	c  float64
 	s0 float64
@@ -20,8 +13,8 @@ type alea struct {
 	s2 float64
 }
 
-func NewAlea(seed any) *alea {
-	mash := Mash()
+func newAlea(seed any) *alea {
+	mash := mash()
 	a := &alea{
 		c:  1,
 		s0: mash(" "),
@@ -66,23 +59,7 @@ func (a *alea) Next() float64 {
 	return a.s2
 }
 
-func (a *alea) SetState(state state) {
-	a.c = state.C
-	a.s0 = state.S0
-	a.s1 = state.S1
-	a.s2 = state.S2
-}
-
-func (a *alea) GetState() state {
-	return state{
-		C:  a.c,
-		S0: a.s0,
-		S1: a.s1,
-		S2: a.s2,
-	}
-}
-
-func Mash() func(string) float64 {
+func mash() func(string) float64 {
 	n := uint32(0xefc8249d)
 	return func(data string) float64 {
 		for i := 0; i < len(data); i++ {
@@ -101,8 +78,10 @@ func Mash() func(string) float64 {
 
 type PRNG func() float64
 
+// Alea returns a deterministic PRNG seeded with the given value.
+// The seed can be a string, int, or nil (which uses the current time).
 func Alea(seed any) PRNG {
-	xg := NewAlea(seed)
+	xg := newAlea(seed)
 	prng := func() float64 {
 		return xg.Next()
 	}
@@ -110,19 +89,6 @@ func Alea(seed any) PRNG {
 	return prng
 }
 
-func (prng PRNG) Int32() int32 {
-	return int32(prng() * 0x100000000)
-}
-
 func (prng PRNG) Double() float64 {
 	return prng() + float64(uint32(prng()*0x200000))*1.1102230246251565e-16 // 2^-53
-}
-
-func (prng PRNG) State(xg *alea) state {
-	return xg.GetState()
-}
-
-func (prng PRNG) ImportState(xg *alea, state state) PRNG {
-	xg.SetState(state)
-	return prng
 }

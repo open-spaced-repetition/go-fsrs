@@ -5,9 +5,15 @@ import (
 	"math"
 )
 
-var DefaultLearningSteps = []float64{1, 10}
+// DefaultLearningSteps returns the default learning step delays in minutes: {1, 10}.
+func DefaultLearningSteps() []float64 {
+	return []float64{1, 10}
+}
 
-var DefaultRelearningSteps = []float64{10}
+// DefaultRelearningSteps returns the default relearning step delay in minutes: {10}.
+func DefaultRelearningSteps() []float64 {
+	return []float64{10}
+}
 
 type Parameters struct {
 	RequestRetention float64   `json:"RequestRetention"`
@@ -19,9 +25,16 @@ type Parameters struct {
 	EnableFuzz       bool      `json:"EnableFuzz"`
 	LearningSteps    []float64 `json:"LearningSteps"`
 	RelearningSteps  []float64 `json:"RelearningSteps"`
-	seed             string
+	// seed is populated internally by the Scheduler before fuzz is applied.
+	// When calling [Parameters.ApplyFuzz] directly without going through a
+	// Scheduler (e.g. [FSRS.Repeat] or [FSRS.Next]), seed will be empty,
+	// producing deterministic but predictable fuzz output. To avoid this,
+	// always use the Scheduler-based APIs.
+	seed string
 }
 
+// DefaultParam returns a Parameters value initialized with sensible defaults:
+// retention 0.9, max interval 36500, default weights, and short-term enabled.
 func DefaultParam() Parameters {
 	w := DefaultWeights()
 	p := Parameters{
@@ -30,8 +43,8 @@ func DefaultParam() Parameters {
 		W:                w,
 		EnableShortTerm:  true,
 		EnableFuzz:       false,
-		LearningSteps:    DefaultLearningSteps,
-		RelearningSteps:  DefaultRelearningSteps,
+		LearningSteps:    DefaultLearningSteps(),
+		RelearningSteps:  DefaultRelearningSteps(),
 	}
 	p.Decay, p.Factor = p.decayAndFactor()
 	return p
@@ -44,33 +57,33 @@ func DefaultParam() Parameters {
 func (p *Parameters) Validate() error {
 	for i, w := range p.W {
 		if math.IsNaN(w) || math.IsInf(w, 0) {
-			return fmt.Errorf("fsrs: invalid weight W[%d]: must be finite", i)
+			return &Error{Code: ErrCodeInvalidWeightsValue, Message: fmt.Sprintf("fsrs: invalid weight W[%d]: must be finite", i)}
 		}
 	}
 
 	if p.W[20] <= 0 {
-		return fmt.Errorf("fsrs: invalid weight W[20]: must be > 0")
+		return &Error{Code: ErrCodeInvalidDecay, Message: fmt.Sprintf("fsrs: invalid weight W[20]: must be > 0, got %v", p.W[20])}
 	}
 
 	if math.IsNaN(p.RequestRetention) || math.IsInf(p.RequestRetention, 0) ||
 		p.RequestRetention <= 0 || p.RequestRetention > 1 {
-		return fmt.Errorf("fsrs: invalid RequestRetention: must be in (0, 1], got %v", p.RequestRetention)
+		return &Error{Code: ErrCodeInvalidRetention, Message: fmt.Sprintf("fsrs: invalid RequestRetention: must be in (0, 1], got %v", p.RequestRetention)}
 	}
 
 	if math.IsNaN(p.MaximumInterval) || math.IsInf(p.MaximumInterval, 0) ||
 		p.MaximumInterval <= 0 || p.MaximumInterval > 36500 {
-		return fmt.Errorf("fsrs: invalid MaximumInterval: must be in (0, 36500], got %v", p.MaximumInterval)
+		return &Error{Code: ErrCodeInvalidMaxInterval, Message: fmt.Sprintf("fsrs: invalid MaximumInterval: must be in (0, 36500], got %v", p.MaximumInterval)}
 	}
 
 	for i, s := range p.LearningSteps {
 		if math.IsNaN(s) || math.IsInf(s, 0) || s < 0 {
-			return fmt.Errorf("fsrs: invalid LearningSteps[%d]: must be finite and >= 0, got %v", i, s)
+			return &Error{Code: ErrCodeInvalidSteps, Message: fmt.Sprintf("fsrs: invalid LearningSteps[%d]: must be finite and >= 0, got %v", i, s)}
 		}
 	}
 
 	for i, s := range p.RelearningSteps {
 		if math.IsNaN(s) || math.IsInf(s, 0) || s < 0 {
-			return fmt.Errorf("fsrs: invalid RelearningSteps[%d]: must be finite and >= 0, got %v", i, s)
+			return &Error{Code: ErrCodeInvalidSteps, Message: fmt.Sprintf("fsrs: invalid RelearningSteps[%d]: must be finite and >= 0, got %v", i, s)}
 		}
 	}
 
@@ -83,7 +96,7 @@ func clamp(v, lo, hi float64) float64 {
 
 func clipParameters(p *Parameters) {
 	const initSMax = 100.0
-	const sMin = 0.001
+	const initSMin = 0.001
 
 	w17W18Ceiling := 2.0
 	numRelearning := len(p.RelearningSteps)
@@ -105,7 +118,7 @@ func clipParameters(p *Parameters) {
 	}
 
 	clampRanges := [21][2]float64{
-		{sMin, initSMax}, {sMin, initSMax}, {sMin, initSMax}, {sMin, initSMax},
+		{initSMin, initSMax}, {initSMin, initSMax}, {initSMin, initSMax}, {initSMin, initSMax},
 		{1.0, 10.0},
 		{0.001, 4.0}, {0.001, 4.0},
 		{0.001, 0.75},

@@ -1,6 +1,7 @@
 package fsrs
 
 import (
+	"fmt"
 	"sort"
 	"time"
 )
@@ -11,6 +12,9 @@ import (
 // captures any change in due date relative to the original card.
 // Returns an error if a manual review entry is missing required fields.
 func (f *FSRS) Reschedule(card Card, reviews []ReviewHistory, opts RescheduleOptions) (RescheduleResult, error) {
+	if !isValidState(card.State) {
+		return RescheduleResult{}, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid card state: %d", card.State)}
+	}
 	working := reviews
 	if opts.SortReviews {
 		working = make([]ReviewHistory, len(reviews))
@@ -65,7 +69,11 @@ func (f *FSRS) Reschedule(card Card, reviews []ReviewHistory, opts RescheduleOpt
 
 	var rescheduleItem *SchedulingInfo
 	if len(collections) > 0 {
-		rescheduleItem = f.calculateManualRecord(card, opts.Now, collections[len(collections)-1], opts.UpdateMemoryState)
+		var err2 error
+		rescheduleItem, err2 = f.calculateManualRecord(card, opts.Now, collections[len(collections)-1], opts.UpdateMemoryState)
+		if err2 != nil {
+			return RescheduleResult{}, err2
+		}
 	}
 
 	return RescheduleResult{
@@ -139,11 +147,11 @@ func (f *FSRS) handleManualRating(card Card, state State, reviewed time.Time, st
 	return SchedulingInfo{Card: nextCard, ReviewLog: log}, nil
 }
 
-func (f *FSRS) calculateManualRecord(currentCard Card, now time.Time, lastItem SchedulingInfo, updateMemory bool) *SchedulingInfo {
+func (f *FSRS) calculateManualRecord(currentCard Card, now time.Time, lastItem SchedulingInfo, updateMemory bool) (*SchedulingInfo, error) {
 	rescheduleCard := lastItem.Card
 
 	if currentCard.Due.Equal(rescheduleCard.Due) {
-		return nil
+		return nil, nil
 	}
 
 	scheduledDays := dateDiffInDays(currentCard.Due, rescheduleCard.Due)
@@ -157,6 +165,9 @@ func (f *FSRS) calculateManualRecord(currentCard Card, now time.Time, lastItem S
 		diff = rescheduleCard.Difficulty
 	}
 
-	item, _ := f.handleManualRating(curCard, rescheduleCard.State, now, stab, diff, rescheduleCard.Due)
-	return &item
+	item, err := f.handleManualRating(curCard, rescheduleCard.State, now, stab, diff, rescheduleCard.Due)
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
 }

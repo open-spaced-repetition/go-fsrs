@@ -57,11 +57,11 @@ func (p *Parameters) nextInterval(s, elapsedDays float64) float64 {
 	decay, factor := p.decayAndFactor()
 	s = constrainStability(s)
 	newInterval := s / factor * (math.Pow(p.RequestRetention, 1/decay) - 1)
-	ivl := max(min(math.Round(newInterval), p.MaximumInterval), 1)
-	if !p.EnableFuzz || ivl < 2.5 {
-		return ivl
+	interval := max(min(math.Round(newInterval), p.MaximumInterval), 1)
+	if !p.EnableFuzz || interval < 2.5 {
+		return interval
 	}
-	return applyFuzz(ivl, elapsedDays, p.MaximumInterval, p.seed)
+	return applyFuzz(interval, elapsedDays, p.MaximumInterval, p.seed)
 }
 
 func (p *Parameters) nextIntervalRaw(s float64) float64 {
@@ -89,7 +89,7 @@ func (p *Parameters) meanReversion(init float64, current float64) float64 {
 	return p.W[7]*init + (1-p.W[7])*current
 }
 
-func (p *Parameters) nextRecallStability(d float64, s float64, r float64, rating Rating) float64 {
+func (p *Parameters) nextRecallStability(d float64, s float64, retrievability float64, rating Rating) float64 {
 	var hardPenalty, easyBonus float64
 	if rating == Hard {
 		hardPenalty = p.W[15]
@@ -104,18 +104,18 @@ func (p *Parameters) nextRecallStability(d float64, s float64, r float64, rating
 	newS := s * (1 + math.Exp(p.W[8])*
 		(11-d)*
 		math.Pow(s, -p.W[9])*
-		(math.Exp((1-r)*p.W[10])-1)*
+		(math.Exp((1-retrievability)*p.W[10])-1)*
 		hardPenalty*
 		easyBonus)
 
 	return constrainStability(newS)
 }
 
-func (p *Parameters) nextForgetStability(d float64, s float64, r float64) float64 {
+func (p *Parameters) nextForgetStability(d float64, s float64, retrievability float64) float64 {
 	newS := p.W[11] *
 		math.Pow(d, -p.W[12]) *
 		(math.Pow(s+1, p.W[13]) - 1) *
-		math.Exp((1-r)*p.W[14])
+		math.Exp((1-retrievability)*p.W[14])
 	var sCeil float64
 	if p.EnableShortTerm {
 		sCeil = s / math.Exp(p.W[17]*p.W[18])

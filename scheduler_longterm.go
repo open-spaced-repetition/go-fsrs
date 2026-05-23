@@ -10,6 +10,10 @@ type longTermScheduler struct {
 
 var _ implScheduler = longTermScheduler{}
 
+// NewLongTermScheduler creates a Scheduler using the long-term FSRS variant
+// for the given card and reference time. This variant is selected when
+// Parameters.EnableShortTerm is false. Call Preview or Review on the returned
+// Scheduler to obtain scheduling results.
 func (p *Parameters) NewLongTermScheduler(card Card, now time.Time) *Scheduler {
 	return p.newScheduler(card, now, func(s *Scheduler) implScheduler {
 		return longTermScheduler{s}
@@ -32,7 +36,7 @@ func (lts longTermScheduler) newState(grade Rating) SchedulingInfo {
 	lts.initDs(&nextAgain, &nextHard, &nextGood, &nextEasy)
 
 	lts.nextInterval(&nextAgain, &nextHard, &nextGood, &nextEasy, 0)
-	lts.nextState(&nextAgain, &nextHard, &nextGood, &nextEasy)
+	setReviewState(&nextAgain, &nextHard, &nextGood, &nextEasy)
 	lts.updateNext(&nextAgain, &nextHard, &nextGood, &nextEasy)
 
 	return lts.next[grade]
@@ -62,37 +66,23 @@ func (lts longTermScheduler) reviewState(grade Rating) SchedulingInfo {
 		return exist
 	}
 
-	interval := lts.elapsedDays()
+	elapsedDays := lts.elapsedDays()
 	difficulty := lts.last.Difficulty
 	stability := lts.last.Stability
-	retrievability := lts.parameters.ForgettingCurve(interval, stability)
+	retrievability := lts.parameters.ForgettingCurve(elapsedDays, stability)
 
 	nextAgain := lts.current
 	nextHard := lts.current
 	nextGood := lts.current
 	nextEasy := lts.current
 
-	lts.nextDs(&nextAgain, &nextHard, &nextGood, &nextEasy, difficulty, stability, retrievability)
-	lts.nextInterval(&nextAgain, &nextHard, &nextGood, &nextEasy, interval)
-	lts.nextState(&nextAgain, &nextHard, &nextGood, &nextEasy)
+	lts.Scheduler.nextDs(&nextAgain, &nextHard, &nextGood, &nextEasy, difficulty, stability, retrievability)
+	lts.nextInterval(&nextAgain, &nextHard, &nextGood, &nextEasy, elapsedDays)
+	setReviewState(&nextAgain, &nextHard, &nextGood, &nextEasy)
 	nextAgain.Lapses++
 
 	lts.updateNext(&nextAgain, &nextHard, &nextGood, &nextEasy)
 	return lts.next[grade]
-}
-
-func (lts longTermScheduler) nextDs(nextAgain, nextHard, nextGood, nextEasy *Card, difficulty, stability, retrievability float64) {
-	nextAgain.Difficulty = lts.parameters.nextDifficulty(difficulty, Again)
-	nextAgain.Stability = lts.parameters.nextForgetStability(difficulty, stability, retrievability)
-
-	nextHard.Difficulty = lts.parameters.nextDifficulty(difficulty, Hard)
-	nextHard.Stability = lts.parameters.nextRecallStability(difficulty, stability, retrievability, Hard)
-
-	nextGood.Difficulty = lts.parameters.nextDifficulty(difficulty, Good)
-	nextGood.Stability = lts.parameters.nextRecallStability(difficulty, stability, retrievability, Good)
-
-	nextEasy.Difficulty = lts.parameters.nextDifficulty(difficulty, Easy)
-	nextEasy.Stability = lts.parameters.nextRecallStability(difficulty, stability, retrievability, Easy)
 }
 
 func (lts longTermScheduler) nextInterval(nextAgain, nextHard, nextGood, nextEasy *Card, elapsedDays float64) {
@@ -119,7 +109,7 @@ func (lts longTermScheduler) nextInterval(nextAgain, nextHard, nextGood, nextEas
 	nextEasy.Due = lts.now.Add(daysToDuration(easyInterval, lts.parameters.MaximumInterval))
 }
 
-func (lts longTermScheduler) nextState(nextAgain, nextHard, nextGood, nextEasy *Card) {
+func setReviewState(nextAgain, nextHard, nextGood, nextEasy *Card) {
 	nextAgain.State = Review
 	nextAgain.RemainingSteps = 0
 	nextHard.State = Review
