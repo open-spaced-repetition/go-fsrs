@@ -78,7 +78,7 @@ func (f *FSRS) Retrievability(card Card, now time.Time) (float64, error) {
 	return f.Parameters.ForgettingCurve(elapsedDays, card.Stability), nil
 }
 
-// Deprecated: Use Retrievability instead.
+// Deprecated: Use Retrievability instead. Will be removed in v4.0.0
 func (f *FSRS) GetRetrievability(card Card, now time.Time) (float64, error) {
 	return f.Retrievability(card, now)
 }
