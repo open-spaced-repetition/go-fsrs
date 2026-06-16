@@ -3203,7 +3203,7 @@ func TestReschedule(t *testing.T) {
 		var currentCard Card
 		var historyCards []Card
 		for _, review := range reviews {
-				item, err := f.Next(currentCard, review.Review, review.Rating)
+			item, err := f.Next(currentCard, review.Review, review.Rating)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -4781,9 +4781,9 @@ func TestGetFuzzRange(t *testing.T) {
 
 	t.Run("min never exceeds max", func(t *testing.T) {
 		for _, tc := range []struct {
-		interval    float64
-		elapsed float64
-		maxInterval float64
+			interval    float64
+			elapsed     float64
+			maxInterval float64
 		}{
 			{2.5, 0, 36500},
 			{7.0, 0, 36500},

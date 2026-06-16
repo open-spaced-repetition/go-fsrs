@@ -352,11 +352,11 @@ func TestMemoryStateFromSM2(t *testing.T) {
 	f := NewFSRS(DefaultParam())
 
 	cases := []struct {
-		ease             float64
-		interval         float64
-		retention        float64
-		wantStability    float64
-		wantDifficulty   float64
+		ease           float64
+		interval       float64
+		retention      float64
+		wantStability  float64
+		wantDifficulty float64
 	}{
 		{2.5, 10.0, 0.9, 10.0, 6.9140563},
 		{2.5, 10.0, 0.8, 3.01572, 9.393428},
