@@ -34,6 +34,13 @@ func TestStabilityToInterval(t *testing.T) {
 		}
 	})
 
+	t.Run("retention approaching zero yields +Inf", func(t *testing.T) {
+		got := stabilityToInterval(10.0, decay, factor, 1e-300)
+		if !math.IsInf(got, 1) {
+			t.Errorf("stabilityToInterval at retention→0+ = %v, want +Inf", got)
+		}
+	})
+
 	t.Run("monotonic in stability", func(t *testing.T) {
 		prev := stabilityToInterval(0.001, decay, factor, 0.9)
 		for s := 0.01; s <= 100.0; s *= 1.5 {
