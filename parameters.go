@@ -184,7 +184,7 @@ func (p *Parameters) nextStateInner(current *MemoryState, desiredRetention, elap
 	}
 
 	newS = constrainStability(newS)
-	interval := newS / factor * (math.Pow(desiredRetention, 1/decay) - 1)
+	interval := stabilityToInterval(newS, decay, factor, desiredRetention)
 
 	return ItemState{
 		Memory:   MemoryState{Stability: newS, Difficulty: newD},
