@@ -53,10 +53,14 @@ func (p *Parameters) initDifficulty(r Rating) float64 {
 	return p.W[4] - math.Exp(p.W[5]*float64(r-1)) + 1
 }
 
+func stabilityToInterval(s, decay, factor, retention float64) float64 {
+	return s / factor * (math.Pow(retention, 1/decay) - 1)
+}
+
 func (p *Parameters) nextInterval(s, elapsedDays float64) float64 {
 	decay, factor := p.decayAndFactor()
 	s = constrainStability(s)
-	newInterval := s / factor * (math.Pow(p.RequestRetention, 1/decay) - 1)
+	newInterval := stabilityToInterval(s, decay, factor, p.RequestRetention)
 	interval := max(min(math.Round(newInterval), p.MaximumInterval), 1)
 	if !p.EnableFuzz || interval < 2.5 {
 		return interval
@@ -67,7 +71,7 @@ func (p *Parameters) nextInterval(s, elapsedDays float64) float64 {
 func (p *Parameters) nextIntervalRaw(s float64) float64 {
 	decay, factor := p.decayAndFactor()
 	s = constrainStability(s)
-	return s / factor * (math.Pow(p.RequestRetention, 1/decay) - 1)
+	return stabilityToInterval(s, decay, factor, p.RequestRetention)
 }
 
 func (p *Parameters) nextDifficulty(d float64, r Rating) float64 {

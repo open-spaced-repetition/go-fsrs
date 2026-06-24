@@ -29,13 +29,7 @@ func (p *Parameters) ApplyFuzz(interval float64, elapsedDays float64, enableFuzz
 	if !enableFuzz || interval < 2.5 {
 		return interval
 	}
-
-	generator := Alea(p.seed)
-	fuzzFactor := generator.Double()
-
-	minInterval, maxInterval := getFuzzRange(interval, elapsedDays, p.MaximumInterval)
-
-	return math.Floor(fuzzFactor*float64(maxInterval-minInterval+1)) + float64(minInterval)
+	return applyFuzz(interval, elapsedDays, p.MaximumInterval, p.seed)
 }
 
 func applyFuzz(interval float64, elapsedDays float64, maximumInterval float64, seed string) float64 {
