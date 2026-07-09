@@ -76,6 +76,8 @@ func mash() func(string) float64 {
 	}
 }
 
+// PRNG is a pseudo-random number generator function that returns a float64
+// in [0, 1).
 type PRNG func() float64
 
 // Alea returns a deterministic PRNG seeded with the given value.
@@ -89,6 +91,8 @@ func Alea(seed any) PRNG {
 	return prng
 }
 
+// Double returns a double-precision random float64 in [0, 1) with 53 bits
+// of entropy.
 func (prng PRNG) Double() float64 {
 	return prng() + float64(uint32(prng()*0x200000))*1.1102230246251565e-16 // 2^-53
 }

@@ -5,8 +5,10 @@ import (
 	"math"
 )
 
+// Weights holds the 21 FSRS v6 weight parameters used by the scheduler.
 type Weights [21]float64
 
+// DefaultWeights returns the default FSRS v6 weight values.
 func DefaultWeights() Weights {
 	return Weights{
 		0.212,

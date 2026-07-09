@@ -83,31 +83,31 @@ var (
 		Message: "fsrs: invalid weights slice length: must be 17, 19, or 21",
 	}
 
-	// ErrInvalidWeightsValue is returned when any weight parameter is NaN or Inf.
+	// ErrInvalidWeightsValue matches errors returned when any weight parameter is NaN or Inf.
 	ErrInvalidWeightsValue = &Error{
 		Code:    ErrCodeInvalidWeightsValue,
 		Message: "fsrs: invalid weights value: must be finite",
 	}
 
-	// ErrInvalidDecay is returned by Validate when W[20] (decay) is not positive.
+	// ErrInvalidDecay matches errors returned by Validate when W[20] (decay) is not positive.
 	ErrInvalidDecay = &Error{
 		Code:    ErrCodeInvalidDecay,
 		Message: "fsrs: invalid weight W[20]: must be > 0",
 	}
 
-	// ErrInvalidRetention is returned by Validate when RequestRetention is outside (0, 1].
+	// ErrInvalidRetention matches errors returned by Validate when RequestRetention is outside (0, 1].
 	ErrInvalidRetention = &Error{
 		Code:    ErrCodeInvalidRetention,
 		Message: "fsrs: invalid RequestRetention: must be in (0, 1]",
 	}
 
-	// ErrInvalidMaxInterval is returned by Validate when MaximumInterval is outside (0, 36500].
+	// ErrInvalidMaxInterval matches errors returned by Validate when MaximumInterval is outside (0, 36500].
 	ErrInvalidMaxInterval = &Error{
 		Code:    ErrCodeInvalidMaxInterval,
 		Message: "fsrs: invalid MaximumInterval: must be in (0, 36500]",
 	}
 
-	// ErrInvalidSteps is returned by Validate when a learning or relearning step is invalid.
+	// ErrInvalidSteps matches errors returned by Validate when a learning or relearning step is invalid.
 	ErrInvalidSteps = &Error{
 		Code:    ErrCodeInvalidSteps,
 		Message: "fsrs: invalid steps: must be finite and >= 0",

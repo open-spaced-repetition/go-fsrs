@@ -25,6 +25,9 @@ func FuzzRanges() []fuzzRange {
 	return out
 }
 
+// ApplyFuzz applies interval randomization to avoid all cards being due on
+// the same day. Returns the interval unchanged when enableFuzz is false or
+// the interval is below the fuzz threshold (2.5 days).
 func (p *Parameters) ApplyFuzz(interval float64, elapsedDays float64, enableFuzz bool) float64 {
 	if !enableFuzz || interval < 2.5 {
 		return interval

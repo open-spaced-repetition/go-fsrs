@@ -73,7 +73,6 @@ func TestStabilityToInterval(t *testing.T) {
 	})
 }
 
-
 func TestNextInterval(t *testing.T) {
 	p := DefaultParam()
 	fsrs := NewFSRS(p)
