@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+// Scheduler holds the internal state for a single scheduling pass over a card.
+// It is created by [Parameters.NewBasicScheduler] or [Parameters.NewLongTermScheduler].
 type Scheduler struct {
 	parameters *Parameters
 
@@ -22,6 +24,8 @@ type implScheduler interface {
 	reviewState(Rating) SchedulingInfo
 }
 
+// Preview returns the scheduling outcome for all four ratings (Again, Hard,
+// Good, Easy) without committing to any single one.
 func (s *Scheduler) Preview() RecordLog {
 	return RecordLog{
 		Again: s.Review(Again),
@@ -31,6 +35,7 @@ func (s *Scheduler) Preview() RecordLog {
 	}
 }
 
+// Review computes the scheduling outcome for the given rating.
 func (s *Scheduler) Review(grade Rating) SchedulingInfo {
 	cardState := s.last.State
 	var item SchedulingInfo

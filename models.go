@@ -4,6 +4,8 @@ import (
 	"time"
 )
 
+// Card represents a spaced-repetition card with its current scheduling state,
+// memory metrics (stability and difficulty), and review counters.
 type Card struct {
 	Due            time.Time `json:"Due"`
 	Stability      float64   `json:"Stability"`
@@ -29,6 +31,8 @@ func NewCard(now ...time.Time) Card {
 	return card
 }
 
+// ReviewLog captures the state of a card at the time a review was performed,
+// including the rating given, the scheduling parameters, and the review timestamp.
 type ReviewLog struct {
 	Rating         Rating    `json:"Rating"`
 	Due            time.Time `json:"Due"`
@@ -40,13 +44,19 @@ type ReviewLog struct {
 	RemainingSteps int       `json:"RemainingSteps"`
 }
 
+// SchedulingInfo pairs a scheduled Card with the ReviewLog produced by the
+// scheduling operation that created it.
 type SchedulingInfo struct {
 	Card      Card      `json:"Card"`
 	ReviewLog ReviewLog `json:"ReviewLog"`
 }
 
+// RecordLog maps each Rating to the SchedulingInfo that would result from
+// choosing that rating. It is the return type of [FSRS.Repeat].
 type RecordLog map[Rating]SchedulingInfo
 
+// Rating represents the user's response when reviewing a card.
+// Valid values are Manual (0), Again (1), Hard (2), Good (3), and Easy (4).
 type Rating int8
 
 const Manual Rating = 0
@@ -74,6 +84,8 @@ func (r Rating) String() string {
 	return "unknown"
 }
 
+// State represents the learning stage of a card in the spaced-repetition cycle.
+// Valid values are New (0), Learning (1), Review (2), and Relearning (3).
 type State int8
 
 const (
@@ -97,11 +109,15 @@ func (s State) String() string {
 	return "unknown"
 }
 
+// MemoryState holds the stability and difficulty values that characterize
+// the strength of a card's memory trace.
 type MemoryState struct {
 	Stability  float64 `json:"Stability"`
 	Difficulty float64 `json:"Difficulty"`
 }
 
+// ItemState pairs a MemoryState with the scheduled interval (in days) that
+// would result from the associated rating.
 type ItemState struct {
 	Memory   MemoryState `json:"Memory"`
 	Interval float64     `json:"Interval"`
@@ -116,6 +132,7 @@ type ReviewEntry struct {
 // ReviewEntries is a chronologically ordered sequence of ReviewEntry values.
 type ReviewEntries []ReviewEntry
 
+// NextStates holds the scheduling outcome for all four ratings.
 type NextStates struct {
 	Again ItemState `json:"Again"`
 	Hard  ItemState `json:"Hard"`

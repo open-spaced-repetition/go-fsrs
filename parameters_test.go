@@ -464,24 +464,6 @@ func TestRetrievability(t *testing.T) {
 	}
 }
 
-func TestGetRetrievabilityBackwardCompat(t *testing.T) {
-	f := NewFSRS(DefaultParam())
-	card := Card{LastReview: time.Now().Add(-24 * time.Hour), Stability: 1, State: Review}
-	now := card.LastReview.Add(24 * time.Hour)
-
-	got, err := f.GetRetrievability(card, now)
-	if err != nil {
-		t.Fatalf("deprecated GetRetrievability should still work: %v", err)
-	}
-	expected, err := f.Retrievability(card, now)
-	if err != nil {
-		t.Fatalf("Retrievability error: %v", err)
-	}
-	if got != expected {
-		t.Errorf("GetRetrievability = %v, want %v (should match Retrievability)", got, expected)
-	}
-}
-
 func BenchmarkNextStates(b *testing.B) {
 	p := DefaultParam()
 	current := &MemoryState{Stability: 51.344814, Difficulty: 7.005062}

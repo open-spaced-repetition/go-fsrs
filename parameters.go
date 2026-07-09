@@ -15,6 +15,8 @@ func DefaultRelearningSteps() []float64 {
 	return []float64{10}
 }
 
+// Parameters holds the FSRS scheduler configuration: retention target,
+// interval limits, weights, fuzz and short-term settings, and learning steps.
 type Parameters struct {
 	RequestRetention float64   `json:"RequestRetention"`
 	MaximumInterval  float64   `json:"MaximumInterval"`
@@ -104,10 +106,9 @@ func clipParameters(p *Parameters) {
 		w11 := clamp(p.W[11], 0.001, 5.0)
 		w13 := clamp(p.W[13], 0.001, 0.9)
 		w14 := clamp(p.W[14], 0.0, 4.0)
-		value := -(
-			math.Log(w11) +
-				math.Log(math.Pow(2.0, w13)-1.0) +
-				w14*0.3) /
+		value := -(math.Log(w11) +
+			math.Log(math.Pow(2.0, w13)-1.0) +
+			w14*0.3) /
 			float64(numRelearning)
 		w17W18Ceiling = clamp(math.Sqrt(math.Max(value, 0)), 0.01, 2.0)
 	}
@@ -141,17 +142,22 @@ func clipParameters(p *Parameters) {
 	}
 }
 
+// ForgettingCurve computes the retrievability (probability of recall) given
+// the elapsed days since the last review and the card's stability.
 func (p *Parameters) ForgettingCurve(elapsedDays float64, stability float64) float64 {
 	decay, factor := p.decayAndFactor()
 	stability = constrainStability(stability)
 	return math.Pow(1+factor*elapsedDays/stability, decay)
 }
 
+// NextState computes the resulting memory state and interval for a single rating.
 func (p *Parameters) NextState(current *MemoryState, desiredRetention float64, daysElapsed uint64, grade Rating) ItemState {
 	decay, factor := p.decayAndFactor()
 	return p.nextStateInner(current, desiredRetention, float64(daysElapsed), grade, decay, factor)
 }
 
+// NextStates computes the resulting memory state and interval for all four
+// ratings (Again, Hard, Good, Easy).
 func (p *Parameters) NextStates(current *MemoryState, desiredRetention float64, daysElapsed uint64) NextStates {
 	decay, factor := p.decayAndFactor()
 	elapsed := float64(daysElapsed)

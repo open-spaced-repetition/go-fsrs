@@ -119,9 +119,9 @@ func TestGetFuzzRange(t *testing.T) {
 
 	t.Run("min never exceeds max", func(t *testing.T) {
 		for _, tc := range []struct {
-		interval    float64
-		elapsed float64
-		maxInterval float64
+			interval    float64
+			elapsed     float64
+			maxInterval float64
 		}{
 			{2.5, 0, 36500},
 			{7.0, 0, 36500},
