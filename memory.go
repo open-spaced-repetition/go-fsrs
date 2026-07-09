@@ -7,7 +7,7 @@ import (
 
 func (f *FSRS) computeMemoryStates(history ReviewEntries, startingState *MemoryState, returnAll bool) ([]MemoryState, error) {
 	if len(history) == 0 {
-		return nil, fmt.Errorf("fsrs: history must not be empty")
+		return nil, &Error{Code: ErrCodeInvalidInput, Message: "fsrs: history must not be empty"}
 	}
 
 	decay, factor := f.decayAndFactor()
@@ -27,10 +27,10 @@ func (f *FSRS) computeMemoryStates(history ReviewEntries, startingState *MemoryS
 
 	for _, review := range history {
 		if review.Rating < Again || review.Rating > Easy {
-			return nil, fmt.Errorf("fsrs: invalid rating %d, must be 1-4", review.Rating)
+			return nil, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid rating %d, must be 1-4", review.Rating)}
 		}
 		if review.DeltaT < 0 || math.IsNaN(review.DeltaT) || math.IsInf(review.DeltaT, 0) {
-			return nil, fmt.Errorf("fsrs: invalid delta_t, must be a finite non-negative number")
+			return nil, &Error{Code: ErrCodeInvalidInput, Message: "fsrs: invalid delta_t, must be a finite non-negative number"}
 		}
 
 		item := f.nextStateInner(&MemoryState{
@@ -45,10 +45,10 @@ func (f *FSRS) computeMemoryStates(history ReviewEntries, startingState *MemoryS
 	}
 
 	if math.IsNaN(cur.Stability) || math.IsInf(cur.Stability, 0) {
-		return nil, fmt.Errorf("fsrs: computed stability is not finite")
+		return nil, &Error{Code: ErrCodeInvalidInput, Message: "fsrs: computed stability is not finite"}
 	}
 	if math.IsNaN(cur.Difficulty) || math.IsInf(cur.Difficulty, 0) {
-		return nil, fmt.Errorf("fsrs: computed difficulty is not finite")
+		return nil, &Error{Code: ErrCodeInvalidInput, Message: "fsrs: computed difficulty is not finite"}
 	}
 
 	if returnAll {
@@ -79,13 +79,13 @@ func (f *FSRS) HistoricalMemoryStates(history ReviewEntries, startingState *Memo
 // sm2Retention must be finite and in (0, 1) exclusive.
 func (f *FSRS) MemoryStateFromSM2(easeFactor, interval, sm2Retention float64) (*MemoryState, error) {
 	if !isFinite(easeFactor) || easeFactor <= 1 {
-		return nil, fmt.Errorf("fsrs: invalid easeFactor: %v (must be finite and > 1)", easeFactor)
+		return nil, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid easeFactor: %v (must be finite and > 1)", easeFactor)}
 	}
 	if !isFinite(interval) || interval < 0 {
-		return nil, fmt.Errorf("fsrs: invalid interval: %v (must be a finite non-negative number)", interval)
+		return nil, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid interval: %v (must be a finite non-negative number)", interval)}
 	}
 	if !isFinite(sm2Retention) || sm2Retention <= 0 || sm2Retention >= 1 {
-		return nil, fmt.Errorf("fsrs: invalid sm2Retention: %v (must be finite and in (0, 1))", sm2Retention)
+		return nil, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid sm2Retention: %v (must be finite and in (0, 1))", sm2Retention)}
 	}
 
 	decay, factor := f.decayAndFactor()
@@ -100,7 +100,7 @@ func (f *FSRS) MemoryStateFromSM2(easeFactor, interval, sm2Retention float64) (*
 		(math.Exp(w8)*math.Pow(stability, -w9)*math.Expm1((1-sm2Retention)*w10))
 
 	if !isFinite(stability) || !isFinite(difficulty) {
-		return nil, fmt.Errorf("fsrs: computed memory state is not finite (stability=%v, difficulty=%v)", stability, difficulty)
+		return nil, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: computed memory state is not finite (stability=%v, difficulty=%v)", stability, difficulty)}
 	}
 
 	return &MemoryState{

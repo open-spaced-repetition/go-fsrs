@@ -1,6 +1,8 @@
 package fsrs
 
 import (
+	"errors"
+	"math"
 	"testing"
 	"time"
 )
@@ -26,7 +28,10 @@ func TestForget(t *testing.T) {
 	}
 
 	t.Run("preserves counters", func(t *testing.T) {
-		result := fsrs.Forget(card, now, false)
+		result, err := fsrs.Forget(card, now, false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if result.Card.State != New {
 			t.Errorf("expected State=New, got=%v", result.Card.State)
 		}
@@ -78,7 +83,10 @@ func TestForget(t *testing.T) {
 	})
 
 	t.Run("resets counters", func(t *testing.T) {
-		result := fsrs.Forget(card, now, true)
+		result, err := fsrs.Forget(card, now, true)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if result.Card.State != New {
 			t.Errorf("expected State=New, got=%v", result.Card.State)
 		}
@@ -128,7 +136,10 @@ func TestForget(t *testing.T) {
 
 	t.Run("already new", func(t *testing.T) {
 		newCard := NewCard(now)
-		result := fsrs.Forget(newCard, now, false)
+		result, err := fsrs.Forget(newCard, now, false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if result.Card.State != New {
 			t.Errorf("expected State=New, got=%v", result.Card.State)
 		}
@@ -185,7 +196,10 @@ func TestForget(t *testing.T) {
 		if reviewCard.State != Learning && reviewCard.State != Review {
 			t.Fatalf("expected Learning or Review, got=%v", reviewCard.State)
 		}
-		result := fsrs.Forget(reviewCard, reviewCard.Due, false)
+		result, err := fsrs.Forget(reviewCard, reviewCard.Due, false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if result.Card.State != New {
 			t.Errorf("expected State=New, got=%v", result.Card.State)
 		}
@@ -234,7 +248,10 @@ func TestForget(t *testing.T) {
 	})
 
 	t.Run("log captures pre-forget state", func(t *testing.T) {
-		result := fsrs.Forget(card, now, false)
+		result, err := fsrs.Forget(card, now, false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if result.ReviewLog.State != card.State {
 			t.Errorf("expected log State=%v, got=%v", card.State, result.ReviewLog.State)
 		}
@@ -275,11 +292,68 @@ func TestForget(t *testing.T) {
 	})
 
 	t.Run("log scheduled days with future due", func(t *testing.T) {
-		forgetNow := now.Add(-48 * time.Hour)
-		result := fsrs.Forget(card, forgetNow, false)
+		// now is after card.LastReview but before card.Due — valid, and
+		// the log should capture the remaining scheduled days.
+		forgetNow := card.LastReview.Add(1 * time.Hour)
+		result, err := fsrs.Forget(card, forgetNow, false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		expectedDays := dateDiffInDays(forgetNow, card.Due)
 		if result.ReviewLog.ScheduledDays != expectedDays {
 			t.Errorf("expected log ScheduledDays=%d, got=%d", expectedDays, result.ReviewLog.ScheduledDays)
+		}
+	})
+
+	t.Run("rejects now before LastReview", func(t *testing.T) {
+		// now before LastReview violates the invariant enforced by validateCard.
+		forgetNow := card.LastReview.Add(-48 * time.Hour)
+		_, err := fsrs.Forget(card, forgetNow, false)
+		if err == nil {
+			t.Fatal("expected error for now before LastReview, got nil")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("rejects invalid card state", func(t *testing.T) {
+		badCard := card
+		badCard.State = State(99)
+		_, err := fsrs.Forget(badCard, now, false)
+		if err == nil {
+			t.Fatal("expected error for invalid state, got nil")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("rejects NaN stability", func(t *testing.T) {
+		badCard := card
+		badCard.Stability = math.NaN()
+		_, err := fsrs.Forget(badCard, now, false)
+		if err == nil {
+			t.Fatal("expected error for NaN stability, got nil")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
+	})
+
+	t.Run("rejects NaN difficulty", func(t *testing.T) {
+		badCard := card
+		badCard.Difficulty = math.NaN()
+		_, err := fsrs.Forget(badCard, now, false)
+		if err == nil {
+			t.Fatal("expected error for NaN difficulty, got nil")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
 		}
 	})
 }

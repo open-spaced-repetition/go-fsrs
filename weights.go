@@ -1,6 +1,9 @@
 package fsrs
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 type Weights [21]float64
 
@@ -33,20 +36,25 @@ func DefaultWeights() Weights {
 // ConvertV5Weights converts v5 [19]float64 weights to v6 [21]float64 weights.
 // W[19] is set to 0.0 (no short-term stability decay in v5) and
 // W[20] is set to 0.5 (v5 used a fixed decay of -0.5).
-func ConvertV5Weights(v5 [19]float64) Weights {
+// Returns an error if any input parameter is non-finite (NaN or Inf).
+func ConvertV5Weights(v5 [19]float64) (Weights, error) {
+	if err := validateFiniteWeights(v5[:]); err != nil {
+		return Weights{}, err
+	}
+
 	var w Weights
 	copy(w[:19], v5[:])
 	w[19] = 0.0
 	w[20] = fsrs5DefaultDecay
-	return w
+	return w, nil
 }
 
 const fsrs5DefaultDecay = 0.5
 
 func validateFiniteWeights(weights []float64) error {
-	for _, val := range weights {
+	for i, val := range weights {
 		if math.IsNaN(val) || math.IsInf(val, 0) {
-			return ErrInvalidWeightsValue
+			return &Error{Code: ErrCodeInvalidWeightsValue, Message: fmt.Sprintf("fsrs: invalid weight W[%d]: must be finite", i)}
 		}
 	}
 	return nil
@@ -90,13 +98,9 @@ func MigrateWeights(weights []float64) (Weights, error) {
 		copy(v45[:], weights)
 		return ConvertV45Weights(v45)
 	case 19:
-		if err := validateFiniteWeights(weights); err != nil {
-			return Weights{}, err
-		}
 		var v5 [19]float64
 		copy(v5[:], weights)
-		w := ConvertV5Weights(v5)
-		return w, nil
+		return ConvertV5Weights(v5)
 	case 21:
 		if err := validateFiniteWeights(weights); err != nil {
 			return Weights{}, err
