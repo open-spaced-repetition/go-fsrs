@@ -354,7 +354,10 @@ func TestConvertV5Weights(t *testing.T) {
 	v5 := [19]float64{
 		0.4, 0.6, 2.4, 5.8, 6.81, 0.44675013, 1.36, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61, 1.0, 2.0,
 	}
-	w := ConvertV5Weights(v5)
+	w, err := ConvertV5Weights(v5)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	for i := 0; i < 19; i++ {
 		if w[i] != v5[i] {
 			t.Errorf("W[%d]: expected %v, got %v", i, v5[i], w[i])
@@ -366,4 +369,40 @@ func TestConvertV5Weights(t *testing.T) {
 	if w[20] != 0.5 {
 		t.Errorf("W[20]: expected 0.5, got %v", w[20])
 	}
+}
+
+func TestConvertV5WeightsInvalidInput(t *testing.T) {
+	t.Run("NaN input", func(t *testing.T) {
+		v5 := [19]float64{
+			0.4, 0.6, 2.4, 5.8, 6.81, 0.44675013, 1.36, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61, 1.0, math.NaN(),
+		}
+		_, err := ConvertV5Weights(v5)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidWeightsValue {
+			t.Errorf("expected ErrCodeInvalidWeightsValue, got=%v", err)
+		}
+		if !errors.Is(err, ErrInvalidWeightsValue) {
+			t.Errorf("expected errors.Is(err, ErrInvalidWeightsValue), got=%v", err)
+		}
+	})
+
+	t.Run("Inf input", func(t *testing.T) {
+		v5 := [19]float64{
+			0.4, 0.6, 2.4, 5.8, 6.81, 0.44675013, 1.36, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61, math.Inf(1), 2.0,
+		}
+		_, err := ConvertV5Weights(v5)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidWeightsValue {
+			t.Errorf("expected ErrCodeInvalidWeightsValue, got=%v", err)
+		}
+		if !errors.Is(err, ErrInvalidWeightsValue) {
+			t.Errorf("expected errors.Is(err, ErrInvalidWeightsValue), got=%v", err)
+		}
+	})
 }

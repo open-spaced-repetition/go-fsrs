@@ -7,7 +7,12 @@ import "time"
 // The returned SchedulingInfo contains the reset card and a Manual review log
 // that captures the card's pre-forget state (State, Due, Stability, Difficulty,
 // ScheduledDays, RemainingSteps). The card's LastReview is preserved.
-func (f *FSRS) Forget(card Card, now time.Time, resetCount bool) SchedulingInfo {
+// Returns an error if the card or current time is invalid.
+func (f *FSRS) Forget(card Card, now time.Time, resetCount bool) (SchedulingInfo, error) {
+	if err := validateCard(card, now); err != nil {
+		return SchedulingInfo{}, err
+	}
+
 	scheduledDays := uint64(0)
 	if card.State != New {
 		scheduledDays = dateDiffInDays(now, card.Due)
@@ -31,5 +36,5 @@ func (f *FSRS) Forget(card Card, now time.Time, resetCount bool) SchedulingInfo 
 		forgetCard.Reps = card.Reps
 		forgetCard.Lapses = card.Lapses
 	}
-	return SchedulingInfo{Card: forgetCard, ReviewLog: forgetLog}
+	return SchedulingInfo{Card: forgetCard, ReviewLog: forgetLog}, nil
 }

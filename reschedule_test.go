@@ -509,7 +509,7 @@ func TestReschedule(t *testing.T) {
 		var currentCard Card
 		var historyCards []Card
 		for _, review := range reviews {
-				item, err := f.Next(currentCard, review.Review, review.Rating)
+			item, err := f.Next(currentCard, review.Review, review.Rating)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -517,7 +517,10 @@ func TestReschedule(t *testing.T) {
 			historyCards = append(historyCards, currentCard)
 		}
 
-		forgetItem := f.Forget(currentCard, time.Date(2024, 10, 27, 0, 0, 0, 0, time.UTC), false)
+		forgetItem, err := f.Forget(currentCard, time.Date(2024, 10, 27, 0, 0, 0, 0, time.UTC), false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		currentCard = forgetItem.Card
 
 		result, err := f.Reschedule(currentCard, reviews, RescheduleOptions{

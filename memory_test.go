@@ -1,6 +1,7 @@
 package fsrs
 
 import (
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -291,40 +292,37 @@ func TestMemoryStateMatchesRepeatSchedule(t *testing.T) {
 func TestMemoryStateInvalidInput(t *testing.T) {
 	f := NewFSRS(DefaultParam())
 
-	_, err := f.MemoryState(ReviewEntries{}, nil)
-	if err == nil {
-		t.Error("empty history should return error")
+	assertInvalidInput := func(t *testing.T, err error) {
+		t.Helper()
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		var fsrsErr *Error
+		if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+			t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
+		}
 	}
+
+	_, err := f.MemoryState(ReviewEntries{}, nil)
+	assertInvalidInput(t, err)
 
 	_, err = f.MemoryState(ReviewEntries{{Rating: 0, DeltaT: 1}}, nil)
-	if err == nil {
-		t.Error("rating 0 should return error")
-	}
+	assertInvalidInput(t, err)
 
 	_, err = f.MemoryState(ReviewEntries{{Rating: 5, DeltaT: 1}}, nil)
-	if err == nil {
-		t.Error("rating 5 should return error")
-	}
+	assertInvalidInput(t, err)
 
 	_, err = f.MemoryState(ReviewEntries{{Rating: Good, DeltaT: -1}}, nil)
-	if err == nil {
-		t.Error("negative delta_t should return error")
-	}
+	assertInvalidInput(t, err)
 
 	_, err = f.MemoryState(ReviewEntries{{Rating: Good, DeltaT: math.NaN()}}, nil)
-	if err == nil {
-		t.Error("NaN delta_t should return error")
-	}
+	assertInvalidInput(t, err)
 
 	_, err = f.MemoryState(ReviewEntries{{Rating: Good, DeltaT: math.Inf(1)}}, nil)
-	if err == nil {
-		t.Error("Inf delta_t should return error")
-	}
+	assertInvalidInput(t, err)
 
 	_, err = f.HistoricalMemoryStates(ReviewEntries{}, nil)
-	if err == nil {
-		t.Error("empty history should return error")
-	}
+	assertInvalidInput(t, err)
 }
 
 func TestMemoryStateSingleReviewFromNew(t *testing.T) {
@@ -351,11 +349,11 @@ func TestMemoryStateFromSM2(t *testing.T) {
 	f := NewFSRS(DefaultParam())
 
 	cases := []struct {
-		ease             float64
-		interval         float64
-		retention        float64
-		wantStability    float64
-		wantDifficulty   float64
+		ease           float64
+		interval       float64
+		retention      float64
+		wantStability  float64
+		wantDifficulty float64
 	}{
 		{2.5, 10.0, 0.9, 10.0, 6.9140563},
 		{2.5, 10.0, 0.8, 3.01572, 9.393428},
@@ -423,7 +421,11 @@ func TestMemoryStateFromSM2InvalidInput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := f.MemoryStateFromSM2(tc.ease, tc.interval, tc.retention)
 			if err == nil {
-				t.Error("expected error, got nil")
+				t.Fatal("expected error, got nil")
+			}
+			var fsrsErr *Error
+			if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+				t.Errorf("expected ErrCodeInvalidInput, got=%v", err)
 			}
 		})
 	}
