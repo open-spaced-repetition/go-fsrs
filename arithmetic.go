@@ -4,19 +4,24 @@ import (
 	"math"
 )
 
+// Memory-state bounds used by the scheduler and by input validation.
+//
+// SMin and SMax bound a card's stability. SMin is the minimum stability
+// accepted for non-New cards; SMax is the maximum stability the scheduler
+// produces. DMin and DMax bound a card's difficulty.
 const (
-	sMin = 0.001
-	sMax = 36500.0
-	dMin = 1.0
-	dMax = 10.0
+	SMin = 0.001
+	SMax = 36500.0
+	DMin = 1.0
+	DMax = 10.0
 )
 
 func constrainDifficulty(d float64) float64 {
-	return min(max(d, dMin), dMax)
+	return min(max(d, DMin), DMax)
 }
 
 func constrainStability(s float64) float64 {
-	return min(max(s, sMin), sMax)
+	return min(max(s, SMin), SMax)
 }
 
 func linearDamping(deltaD float64, oldD float64) float64 {
@@ -46,7 +51,7 @@ func (p *Parameters) decayAndFactor() (float64, float64) {
 }
 
 func (p *Parameters) initStability(r Rating) float64 {
-	return min(max(p.W[r-1], 0.1), sMax)
+	return min(max(p.W[r-1], 0.1), SMax)
 }
 
 func (p *Parameters) initDifficulty(r Rating) float64 {

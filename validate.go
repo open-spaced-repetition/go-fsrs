@@ -19,11 +19,11 @@ func validateCard(card Card, now time.Time) error {
 		return &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid card state: %d", card.State)}
 	}
 	if card.State != New {
-		if !isFinite(card.Stability) || card.Stability < sMin {
-			return &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid stability: %v (minimum %v for non-New cards)", card.Stability, sMin)}
+		if !isFinite(card.Stability) || card.Stability < SMin {
+			return &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid stability: %v (minimum %v for non-New cards)", card.Stability, SMin)}
 		}
-		if !isFinite(card.Difficulty) || card.Difficulty < dMin {
-			return &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid difficulty: %v (minimum %v for non-New cards)", card.Difficulty, dMin)}
+		if !isFinite(card.Difficulty) || card.Difficulty < DMin {
+			return &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid difficulty: %v (minimum %v for non-New cards)", card.Difficulty, DMin)}
 		}
 	}
 	if !card.LastReview.IsZero() && card.LastReview.After(now) {
@@ -40,10 +40,10 @@ func validateRating(grade Rating) error {
 }
 
 func validateResult(card Card) error {
-	if !isFinite(card.Stability) || card.Stability < sMin {
+	if !isFinite(card.Stability) || card.Stability < SMin {
 		return &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: computed stability is invalid: %v", card.Stability)}
 	}
-	if !isFinite(card.Difficulty) || card.Difficulty < dMin {
+	if !isFinite(card.Difficulty) || card.Difficulty < DMin {
 		return &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: computed difficulty is invalid: %v", card.Difficulty)}
 	}
 	return nil

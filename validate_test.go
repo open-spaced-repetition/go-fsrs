@@ -110,14 +110,14 @@ func TestNextInputValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("difficulty below dMin for non-New card returns error", func(t *testing.T) {
+	t.Run("difficulty below DMin for non-New card returns error", func(t *testing.T) {
 		badCard := card
 		badCard.State = Review
 		badCard.Stability = 5.0
 		badCard.Difficulty = 0.5
 		_, err := f.Next(badCard, now, Good)
 		if err == nil {
-			t.Fatal("expected error for difficulty below dMin")
+			t.Fatal("expected error for difficulty below DMin")
 		}
 		var fsrsErr *Error
 		if !errors.As(err, &fsrsErr) {
@@ -208,14 +208,14 @@ func TestNextInputValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("stability in (0, sMin) for non-New card returns error", func(t *testing.T) {
+	t.Run("stability in (0, SMin) for non-New card returns error", func(t *testing.T) {
 		badCard := card
 		badCard.State = Review
 		badCard.Stability = 0.0005
 		badCard.Difficulty = 5.0
 		_, err := f.Next(badCard, now, Good)
 		if err == nil {
-			t.Fatal("expected error for stability below sMin")
+			t.Fatal("expected error for stability below SMin")
 		}
 		var fsrsErr *Error
 		if !errors.As(err, &fsrsErr) {
@@ -244,27 +244,27 @@ func TestNextInputValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("stability at sMin boundary succeeds", func(t *testing.T) {
+	t.Run("stability at SMin boundary succeeds", func(t *testing.T) {
 		boundaryCard := card
 		boundaryCard.State = Review
-		boundaryCard.Stability = sMin
+		boundaryCard.Stability = SMin
 		boundaryCard.Difficulty = 5.0
 		boundaryCard.LastReview = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 		_, err := f.Next(boundaryCard, now, Good)
 		if err != nil {
-			t.Fatalf("unexpected error at sMin boundary: %v", err)
+			t.Fatalf("unexpected error at SMin boundary: %v", err)
 		}
 	})
 
-	t.Run("difficulty at dMin boundary succeeds", func(t *testing.T) {
+	t.Run("difficulty at DMin boundary succeeds", func(t *testing.T) {
 		boundaryCard := card
 		boundaryCard.State = Review
 		boundaryCard.Stability = 5.0
-		boundaryCard.Difficulty = dMin
+		boundaryCard.Difficulty = DMin
 		boundaryCard.LastReview = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 		_, err := f.Next(boundaryCard, now, Good)
 		if err != nil {
-			t.Fatalf("unexpected error at dMin boundary: %v", err)
+			t.Fatalf("unexpected error at DMin boundary: %v", err)
 		}
 	})
 
@@ -395,14 +395,14 @@ func TestRepeatInputValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("difficulty below dMin for non-New card returns error", func(t *testing.T) {
+	t.Run("difficulty below DMin for non-New card returns error", func(t *testing.T) {
 		badCard := card
 		badCard.State = Review
 		badCard.Stability = 5.0
 		badCard.Difficulty = 0.5
 		_, err := f.Repeat(badCard, now)
 		if err == nil {
-			t.Fatal("expected error for difficulty below dMin")
+			t.Fatal("expected error for difficulty below DMin")
 		}
 		var fsrsErr *Error
 		if !errors.As(err, &fsrsErr) {
@@ -545,9 +545,9 @@ func TestStabilityBoundaryConsistency(t *testing.T) {
 				wantError bool
 			}{
 				{"below minimum", 0.0005, true},
-				{"just below minimum", math.Nextafter(sMin, 0), true},
-				{"at minimum", sMin, false},
-				{"just above minimum", math.Nextafter(sMin, math.Inf(1)), false},
+				{"just below minimum", math.Nextafter(SMin, 0), true},
+				{"at minimum", SMin, false},
+				{"just above minimum", math.Nextafter(SMin, math.Inf(1)), false},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					card := Card{State: state, Stability: tc.stability, Difficulty: 5, LastReview: now.Add(-24 * time.Hour)}
@@ -581,11 +581,11 @@ func TestValidateResult(t *testing.T) {
 		}
 	})
 
-	t.Run("stability below sMin returns error", func(t *testing.T) {
+	t.Run("stability below SMin returns error", func(t *testing.T) {
 		card := Card{Stability: 0.0001, Difficulty: 5.0}
 		err := validateResult(card)
 		if err == nil {
-			t.Fatal("expected error for stability below sMin")
+			t.Fatal("expected error for stability below SMin")
 		}
 		var fsrsErr *Error
 		if !errors.As(err, &fsrsErr) {
@@ -611,11 +611,11 @@ func TestValidateResult(t *testing.T) {
 		}
 	})
 
-	t.Run("difficulty below dMin returns error", func(t *testing.T) {
+	t.Run("difficulty below DMin returns error", func(t *testing.T) {
 		card := Card{Stability: 5.0, Difficulty: 0.5}
 		err := validateResult(card)
 		if err == nil {
-			t.Fatal("expected error for difficulty below dMin")
+			t.Fatal("expected error for difficulty below DMin")
 		}
 		var fsrsErr *Error
 		if !errors.As(err, &fsrsErr) {
@@ -641,15 +641,15 @@ func TestValidateResult(t *testing.T) {
 		}
 	})
 
-	t.Run("stability at sMin boundary passes", func(t *testing.T) {
-		card := Card{Stability: sMin, Difficulty: 5.0}
+	t.Run("stability at SMin boundary passes", func(t *testing.T) {
+		card := Card{Stability: SMin, Difficulty: 5.0}
 		if err := validateResult(card); err != nil {
 			t.Errorf("expected nil at boundary, got=%v", err)
 		}
 	})
 
-	t.Run("difficulty at dMin boundary passes", func(t *testing.T) {
-		card := Card{Stability: 5.0, Difficulty: dMin}
+	t.Run("difficulty at DMin boundary passes", func(t *testing.T) {
+		card := Card{Stability: 5.0, Difficulty: DMin}
 		if err := validateResult(card); err != nil {
 			t.Errorf("expected nil at boundary, got=%v", err)
 		}
@@ -707,7 +707,7 @@ func TestValidateCardDirect(t *testing.T) {
 		}
 	})
 
-	t.Run("stability below sMin non-New", func(t *testing.T) {
+	t.Run("stability below SMin non-New", func(t *testing.T) {
 		card := Card{State: Review, Stability: 0.0005, Difficulty: 5.0}
 		err := validateCard(card, now)
 		if err == nil {
@@ -719,10 +719,10 @@ func TestValidateCardDirect(t *testing.T) {
 		}
 	})
 
-	t.Run("stability at sMin non-New passes", func(t *testing.T) {
-		card := Card{State: Review, Stability: sMin, Difficulty: 5.0}
+	t.Run("stability at SMin non-New passes", func(t *testing.T) {
+		card := Card{State: Review, Stability: SMin, Difficulty: 5.0}
 		if err := validateCard(card, now); err != nil {
-			t.Errorf("expected nil at sMin boundary, got=%v", err)
+			t.Errorf("expected nil at SMin boundary, got=%v", err)
 		}
 	})
 
@@ -738,7 +738,7 @@ func TestValidateCardDirect(t *testing.T) {
 		}
 	})
 
-	t.Run("difficulty below dMin non-New", func(t *testing.T) {
+	t.Run("difficulty below DMin non-New", func(t *testing.T) {
 		card := Card{State: Review, Stability: 5.0, Difficulty: 0.5}
 		err := validateCard(card, now)
 		if err == nil {
@@ -750,10 +750,10 @@ func TestValidateCardDirect(t *testing.T) {
 		}
 	})
 
-	t.Run("difficulty at dMin non-New passes", func(t *testing.T) {
-		card := Card{State: Review, Stability: 5.0, Difficulty: dMin}
+	t.Run("difficulty at DMin non-New passes", func(t *testing.T) {
+		card := Card{State: Review, Stability: 5.0, Difficulty: DMin}
 		if err := validateCard(card, now); err != nil {
-			t.Errorf("expected nil at dMin boundary, got=%v", err)
+			t.Errorf("expected nil at DMin boundary, got=%v", err)
 		}
 	})
 

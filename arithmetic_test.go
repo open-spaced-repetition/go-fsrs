@@ -19,8 +19,8 @@ func TestStabilityToInterval(t *testing.T) {
 		}
 	})
 
-	t.Run("boundary stability sMin and sMax produce finite positive", func(t *testing.T) {
-		for _, s := range []float64{sMin, sMax} {
+	t.Run("boundary stability SMin and SMax produce finite positive", func(t *testing.T) {
+		for _, s := range []float64{SMin, SMax} {
 			got := stabilityToInterval(s, decay, factor, 0.9)
 			if got <= 0 || math.IsNaN(got) || math.IsInf(got, 0) {
 				t.Errorf("stabilityToInterval(%v) = %v, want finite positive", s, got)
@@ -109,14 +109,14 @@ func TestNextIntervalRaw(t *testing.T) {
 		t.Errorf("nextIntervalRaw(0.001) should return < 0.5 days, got=%v", interval)
 	}
 
-	interval = fsrs.nextIntervalRaw(sMin)
+	interval = fsrs.nextIntervalRaw(SMin)
 	if interval <= 0 || math.IsNaN(interval) || math.IsInf(interval, 0) {
-		t.Errorf("nextIntervalRaw(sMin) should return finite positive, got=%v", interval)
+		t.Errorf("nextIntervalRaw(SMin) should return finite positive, got=%v", interval)
 	}
 
-	interval = fsrs.nextIntervalRaw(sMax)
+	interval = fsrs.nextIntervalRaw(SMax)
 	if interval <= 0 || math.IsNaN(interval) || math.IsInf(interval, 0) {
-		t.Errorf("nextIntervalRaw(sMax) should return finite positive, got=%v", interval)
+		t.Errorf("nextIntervalRaw(SMax) should return finite positive, got=%v", interval)
 	}
 
 	decay, factor := p.decayAndFactor()
@@ -166,11 +166,11 @@ func TestStabilityIsClamped(t *testing.T) {
 	p := DefaultParam()
 	p.W[0] = 1e9
 
-	if got := p.initStability(Again); got != sMax {
-		t.Fatalf("initStability should clamp to sMax, got=%v", got)
+	if got := p.initStability(Again); got != SMax {
+		t.Fatalf("initStability should clamp to SMax, got=%v", got)
 	}
 
-	if got := p.shortTermStability(1e9, Good); got != sMax {
-		t.Fatalf("shortTermStability should clamp to sMax, got=%v", got)
+	if got := p.shortTermStability(1e9, Good); got != SMax {
+		t.Fatalf("shortTermStability should clamp to SMax, got=%v", got)
 	}
 }
