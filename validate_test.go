@@ -534,6 +534,45 @@ func TestRetrievabilityInputValidation(t *testing.T) {
 	})
 }
 
+func TestStabilityBoundaryConsistency(t *testing.T) {
+	f := NewFSRS(DefaultParam())
+	now := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
+	for _, state := range []State{Learning, Review, Relearning} {
+		t.Run(state.String(), func(t *testing.T) {
+			for _, tc := range []struct {
+				name      string
+				stability float64
+				wantError bool
+			}{
+				{"below minimum", 0.0005, true},
+				{"just below minimum", math.Nextafter(sMin, 0), true},
+				{"at minimum", sMin, false},
+				{"just above minimum", math.Nextafter(sMin, math.Inf(1)), false},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					card := Card{State: state, Stability: tc.stability, Difficulty: 5, LastReview: now.Add(-24 * time.Hour)}
+					r, recallErr := f.Retrievability(card, now)
+					_, nextErr := f.Next(card, now, Good)
+					_, repeatErr := f.Repeat(card, now)
+					for name, err := range map[string]error{"Retrievability": recallErr, "Next": nextErr, "Repeat": repeatErr} {
+						if tc.wantError {
+							var fsrsErr *Error
+							if !errors.As(err, &fsrsErr) || fsrsErr.Code != ErrCodeInvalidInput {
+								t.Errorf("%s: expected ErrCodeInvalidInput, got %v", name, err)
+							}
+						} else if err != nil {
+							t.Errorf("%s: unexpected error: %v", name, err)
+						}
+					}
+					if !tc.wantError && (math.IsNaN(r) || r <= 0 || r > 1) {
+						t.Errorf("expected retrievability in (0,1], got %v", r)
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestValidateResult(t *testing.T) {
 	t.Run("valid card passes", func(t *testing.T) {
 		card := Card{Stability: 5.0, Difficulty: 5.0}
