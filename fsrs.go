@@ -63,7 +63,8 @@ func (f *FSRS) Next(card Card, now time.Time, grade Rating) (SchedulingInfo, err
 
 // Retrievability returns the current retrievability (probability of recall) for
 // the given card at the specified time. Returns 0 for New cards or cards with no
-// LastReview. Returns an error if the card state or stability is invalid.
+// LastReview. Returns an error if the card state is invalid or stability is
+// non-finite or below the minimum of 0.001.
 func (f *FSRS) Retrievability(card Card, now time.Time) (float64, error) {
 	if card.State == New || card.LastReview.IsZero() {
 		return 0, nil
@@ -71,8 +72,8 @@ func (f *FSRS) Retrievability(card Card, now time.Time) (float64, error) {
 	if !isValidState(card.State) {
 		return 0, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid card state: %d", card.State)}
 	}
-	if !isFinite(card.Stability) || card.Stability <= 0 {
-		return 0, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid stability for retrievability calculation: %v", card.Stability)}
+	if !isFinite(card.Stability) || card.Stability < sMin {
+		return 0, &Error{Code: ErrCodeInvalidInput, Message: fmt.Sprintf("fsrs: invalid stability for retrievability calculation: %v (minimum %v)", card.Stability, sMin)}
 	}
 	elapsedDays := math.Max(0, dateDiffRaw(card.LastReview, now))
 	return f.Parameters.ForgettingCurve(elapsedDays, card.Stability), nil
