@@ -90,7 +90,7 @@ func (f *FSRS) MemoryStateFromSM2(easeFactor, interval, sm2Retention float64) (*
 
 	decay, factor := f.decayAndFactor()
 
-	stability := math.Max(interval, sMin) * factor / (math.Pow(sm2Retention, 1/decay) - 1)
+	stability := math.Max(interval, SMin) * factor / (math.Pow(sm2Retention, 1/decay) - 1)
 
 	w8 := f.W[8]
 	w9 := f.W[9]

@@ -6,6 +6,14 @@ import (
 
 // Card represents a spaced-repetition card with its current scheduling state,
 // memory metrics (stability and difficulty), and review counters.
+//
+// Cards persisted by go-fsrs v3 may contain out-of-range memory state. When
+// loading such cards, skip the memory clamp for New cards, map NaN and -Inf
+// to the lower bound and +Inf to the upper bound, and clamp Stability to
+// [SMin, SMax] and Difficulty to [DMin, DMax]. The upper bounds are saturation
+// limits, while validation rejects only non-finite or sub-minimum values on
+// non-New cards. For any state, reset ScheduledDays above the maximum allowed
+// MaximumInterval (36500) to 0 and Due to now before the first review.
 type Card struct {
 	Due            time.Time `json:"Due"`
 	Stability      float64   `json:"Stability"`

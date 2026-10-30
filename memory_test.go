@@ -87,11 +87,11 @@ func TestMemoryStateAllRatings(t *testing.T) {
 		t.Fatalf("MemoryState returned error: %v", err)
 	}
 
-	if result.Stability < sMin || result.Stability > sMax {
-		t.Errorf("stability %.4f out of range [%.4f, %.4f]", result.Stability, sMin, sMax)
+	if result.Stability < SMin || result.Stability > SMax {
+		t.Errorf("stability %.4f out of range [%.4f, %.4f]", result.Stability, SMin, SMax)
 	}
-	if result.Difficulty < dMin || result.Difficulty > dMax {
-		t.Errorf("difficulty %.4f out of range [%.4f, %.4f]", result.Difficulty, dMin, dMax)
+	if result.Difficulty < DMin || result.Difficulty > DMax {
+		t.Errorf("difficulty %.4f out of range [%.4f, %.4f]", result.Difficulty, DMin, DMax)
 	}
 
 	if math.Abs(result.Stability-current.Stability) > 1e-10 {
@@ -162,10 +162,10 @@ func TestHistoricalMemoryStates(t *testing.T) {
 	}
 
 	for i, s := range states {
-		if s.Stability < sMin || s.Stability > sMax {
+		if s.Stability < SMin || s.Stability > SMax {
 			t.Errorf("state[%d] stability %.4f out of range", i, s.Stability)
 		}
-		if s.Difficulty < dMin || s.Difficulty > dMax {
+		if s.Difficulty < DMin || s.Difficulty > DMax {
 			t.Errorf("state[%d] difficulty %.4f out of range", i, s.Difficulty)
 		}
 	}
@@ -452,11 +452,11 @@ func TestMemoryStateFromSM2Ranges(t *testing.T) {
 			t.Errorf("case %d: unexpected error: %v", i, err)
 			continue
 		}
-		if result.Stability < sMin {
-			t.Errorf("case %d: stability %.10f below sMin (%v)", i, result.Stability, sMin)
+		if result.Stability < SMin {
+			t.Errorf("case %d: stability %.10f below SMin (%v)", i, result.Stability, SMin)
 		}
-		if result.Difficulty < dMin || result.Difficulty > dMax {
-			t.Errorf("case %d: difficulty %.10f outside [%.1f, %.1f]", i, result.Difficulty, dMin, dMax)
+		if result.Difficulty < DMin || result.Difficulty > DMax {
+			t.Errorf("case %d: difficulty %.10f outside [%.1f, %.1f]", i, result.Difficulty, DMin, DMax)
 		}
 	}
 }
