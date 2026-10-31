@@ -2,7 +2,9 @@ package fsrs
 
 import (
 	"math"
+	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -84,6 +86,49 @@ func TestAleaDifferentSeeds(t *testing.T) {
 				t.Fatalf("sequences for seeds %v and %v are identical", tt.a, tt.b)
 			}
 		})
+	}
+}
+
+func TestNilSeed(t *testing.T) {
+	t.Run("includes the timestamp", func(t *testing.T) {
+		first := nilSeed(1000)
+		second := nilSeed(2000)
+
+		if !strings.HasPrefix(first, "1000-") {
+			t.Fatalf("seed %q does not start with the timestamp", first)
+		}
+		if !strings.HasPrefix(second, "2000-") {
+			t.Fatalf("seed %q does not start with the timestamp", second)
+		}
+	})
+
+	t.Run("disambiguates the same timestamp", func(t *testing.T) {
+		first := nilSeed(1000)
+		second := nilSeed(1000)
+
+		if first == second {
+			t.Fatalf("same timestamp produced identical seeds: %q", first)
+		}
+
+		firstSeq := collectSequence(Alea(first), 3)
+		secondSeq := collectSequence(Alea(second), 3)
+		if !sequencesDifferAt(firstSeq, secondSeq) {
+			t.Fatal("same-timestamp seeds produced identical sequences")
+		}
+	})
+}
+
+func TestAleaNilSeedSameClockTick(t *testing.T) {
+	fixed := func() time.Time { return time.Unix(0, 1000) }
+
+	first := newAleaWithClock(nil, fixed)
+	second := newAleaWithClock(nil, fixed)
+
+	firstSeq := collectSequence(PRNG(first.Next), 3)
+	secondSeq := collectSequence(PRNG(second.Next), 3)
+
+	if !sequencesDifferAt(firstSeq, secondSeq) {
+		t.Fatal("nil seeds from the same clock tick produced identical sequences")
 	}
 }
 
