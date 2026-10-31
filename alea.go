@@ -22,12 +22,10 @@ func newAlea(seed any) *alea {
 		s2: mash(" "),
 	}
 
-	if seed == nil {
-		seed = time.Now().UnixNano()
-	}
-
 	seedStr := ""
 	switch s := seed.(type) {
+	case nil:
+		seedStr = strconv.FormatInt(time.Now().UnixNano(), 10)
 	case int:
 		seedStr = strconv.Itoa(s)
 	case string:
