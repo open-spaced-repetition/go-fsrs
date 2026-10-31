@@ -3,8 +3,13 @@ package fsrs
 import (
 	"math"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
+
+// nilSeedCounter disambiguates nil-seeded calls that share a clock tick, which
+// can happen on platforms with coarse time resolution.
+var nilSeedCounter atomic.Uint64
 
 type alea struct {
 	c  float64
@@ -25,7 +30,7 @@ func newAlea(seed any) *alea {
 	seedStr := ""
 	switch s := seed.(type) {
 	case nil:
-		seedStr = strconv.FormatInt(time.Now().UnixNano(), 10)
+		seedStr = strconv.FormatInt(time.Now().UnixNano(), 10) + "-" + strconv.FormatUint(nilSeedCounter.Add(1), 10)
 	case int:
 		seedStr = strconv.Itoa(s)
 	case string:

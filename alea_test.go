@@ -101,6 +101,22 @@ func TestAleaNilSeed(t *testing.T) {
 			t.Fatal("Alea(nil) produced the same sequence as Alea(\"\")")
 		}
 	})
+
+	t.Run("successive calls produce distinct sequences", func(t *testing.T) {
+		const calls = 100
+		sequences := make([][]float64, calls)
+		for i := range sequences {
+			sequences[i] = collectSequence(Alea(nil), 3)
+		}
+
+		for i := range sequences {
+			for j := i + 1; j < len(sequences); j++ {
+				if !sequencesDifferAt(sequences[i], sequences[j]) {
+					t.Fatalf("calls %d and %d produced the same sequence", i, j)
+				}
+			}
+		}
+	})
 }
 
 func TestPRNGNext(t *testing.T) {
