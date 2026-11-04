@@ -3,8 +3,19 @@ package fsrs
 import (
 	"math"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
+
+// nilSeedCounter disambiguates nil-seeded calls that share a clock tick, which
+// can happen on platforms with coarse time resolution.
+var nilSeedCounter atomic.Uint64
+
+// nilSeed builds a seed from a clock reading and a process-wide counter so
+// that calls made in the same clock tick still get distinct seeds.
+func nilSeed(timestamp int64) string {
+	return strconv.FormatInt(timestamp, 10) + "-" + strconv.FormatUint(nilSeedCounter.Add(1), 10)
+}
 
 type alea struct {
 	c  float64
@@ -14,6 +25,12 @@ type alea struct {
 }
 
 func newAlea(seed any) *alea {
+	return newAleaWithClock(seed, time.Now)
+}
+
+// newAleaWithClock is newAlea with an injectable clock so tests can pin
+// nil-seed timing.
+func newAleaWithClock(seed any, now func() time.Time) *alea {
 	mash := mash()
 	a := &alea{
 		c:  1,
@@ -22,12 +39,10 @@ func newAlea(seed any) *alea {
 		s2: mash(" "),
 	}
 
-	if seed == nil {
-		seed = time.Now().UnixNano()
-	}
-
 	seedStr := ""
 	switch s := seed.(type) {
+	case nil:
+		seedStr = nilSeed(now().UnixNano())
 	case int:
 		seedStr = strconv.Itoa(s)
 	case string:
@@ -81,7 +96,8 @@ func mash() func(string) float64 {
 type PRNG func() float64
 
 // Alea returns a deterministic PRNG seeded with the given value.
-// The seed can be a string, int, or nil (which uses the current time).
+// The seed can be a string, int, or nil. Nil seeds combine the current time
+// with a per-call counter, so successive nil calls produce distinct sequences.
 func Alea(seed any) PRNG {
 	xg := newAlea(seed)
 	prng := func() float64 {
