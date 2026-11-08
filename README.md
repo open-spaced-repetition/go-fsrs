@@ -129,6 +129,12 @@ if errors.As(err, &fsrsErr) {
 }
 ```
 
+## Migrating from v3
+
+See [MIGRATION.md](./MIGRATION.md) for the v3 -> v4 migration guide, including
+API changes, parameter and weight conversion, persisted-card repair, and
+review-log caveats.
+
 ## Contributing
 
 Pull requests are welcome. Suggestions, bug reports, and feature ideas belong in [Issues](https://github.com/open-spaced-repetition/go-fsrs/issues).
