@@ -899,6 +899,60 @@ func TestDayScaleSteps(t *testing.T) {
 	}
 }
 
+func TestDayScaleStepsIgnoreMaximumInterval(t *testing.T) {
+	p := DefaultParam()
+	p.MaximumInterval = 1
+	p.LearningSteps = []float64{1440, 2880}
+	f := NewFSRS(p)
+	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
+
+	log, err := f.Repeat(NewCard(now), now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	good := log[Good].Card
+	if good.State != Review {
+		t.Fatalf("Good step of 2880 minutes should graduate to Review, got=%v", good.State)
+	}
+	if good.ScheduledDays != 2 {
+		t.Errorf("Good ScheduledDays=%d, want 2: explicit steps are not capped by MaximumInterval", good.ScheduledDays)
+	}
+	wantDue := now.Add(2880 * time.Minute)
+	if !good.Due.Equal(wantDue) {
+		t.Errorf("Good Due=%v, want %v", good.Due, wantDue)
+	}
+
+	easy := log[Easy].Card
+	if easy.ScheduledDays != 1 {
+		t.Errorf("Easy ScheduledDays=%d, want 1: computed intervals still respect MaximumInterval", easy.ScheduledDays)
+	}
+}
+
+func TestDayScaleRelearningStepsIgnoreMaximumInterval(t *testing.T) {
+	p := DefaultParam()
+	p.MaximumInterval = 1
+	p.RelearningSteps = []float64{2880}
+	f := NewFSRS(p)
+	now := time.Date(2022, 11, 29, 12, 30, 0, 0, time.UTC)
+
+	rec, err := f.Next(normalReviewCard(now), now, Again)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	card := rec.Card
+	if card.State != Review {
+		t.Fatalf("Again with a 2880-minute relearning step should graduate to Review, got=%v", card.State)
+	}
+	if card.ScheduledDays != 2 {
+		t.Errorf("Again ScheduledDays=%d, want 2: explicit steps are not capped by MaximumInterval", card.ScheduledDays)
+	}
+	wantDue := now.Add(2880 * time.Minute)
+	if !card.Due.Equal(wantDue) {
+		t.Errorf("Again Due=%v, want %v", card.Due, wantDue)
+	}
+}
+
 func TestDayScaleStepRelearning(t *testing.T) {
 	p := DefaultParam()
 	p.RelearningSteps = []float64{1440}
