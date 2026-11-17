@@ -96,6 +96,12 @@ func (lts longTermScheduler) nextInterval(nextAgain, nextHard, nextGood, nextEas
 	goodInterval = max(goodInterval, hardInterval+1)
 	easyInterval = max(easyInterval, goodInterval+1)
 
+	maximumInterval := lts.parameters.MaximumInterval
+	againInterval = capInterval(againInterval, maximumInterval)
+	hardInterval = capInterval(hardInterval, maximumInterval)
+	goodInterval = capInterval(goodInterval, maximumInterval)
+	easyInterval = capInterval(easyInterval, maximumInterval)
+
 	nextAgain.ScheduledDays = uint64(againInterval)
 	nextAgain.Due = lts.now.Add(daysToDuration(againInterval, lts.parameters.MaximumInterval))
 

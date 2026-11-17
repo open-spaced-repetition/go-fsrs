@@ -201,6 +201,11 @@ func (bs basicScheduler) reviewState(grade Rating) SchedulingInfo {
 		goodInterval+1,
 	)
 
+	maximumInterval := bs.parameters.MaximumInterval
+	hardInterval = capInterval(hardInterval, maximumInterval)
+	goodInterval = capInterval(goodInterval, maximumInterval)
+	easyInterval = capInterval(easyInterval, maximumInterval)
+
 	nextHard.ScheduledDays = uint64(hardInterval)
 	nextHard.Due = bs.now.Add(daysToDuration(hardInterval, bs.parameters.MaximumInterval))
 	nextHard.State = Review
