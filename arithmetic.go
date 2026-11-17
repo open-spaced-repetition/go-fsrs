@@ -79,6 +79,15 @@ func (p *Parameters) nextIntervalRaw(s float64) float64 {
 	return stabilityToInterval(s, decay, factor, p.RequestRetention)
 }
 
+// capInterval limits a computed interval to the configured maximum. It is
+// applied after the schedulers' monotonic Hard/Good/Easy adjustments, which
+// can otherwise push an interval past MaximumInterval. The one-day floor
+// mirrors nextInterval, so a sub-day MaximumInterval cannot turn a Review
+// outcome into ScheduledDays 0.
+func capInterval(interval, maximumInterval float64) float64 {
+	return max(min(interval, maximumInterval), 1)
+}
+
 func (p *Parameters) nextDifficulty(d float64, r Rating) float64 {
 	deltaD := -p.W[6] * float64(r-3)
 	nextD := d + linearDamping(deltaD, d)
