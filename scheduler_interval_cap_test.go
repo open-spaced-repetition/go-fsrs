@@ -150,7 +150,7 @@ func TestScheduledDaysPartialSaturation(t *testing.T) {
 				t.Fatalf("test setup: base intervals too close (good=%d easy=%d)", goodBase, easyBase)
 			}
 
-			maximumInterval := float64(easyBase - 1)
+			maximumInterval := float64(goodBase)
 			p := DefaultParam()
 			p.EnableShortTerm = shortTerm
 			p.MaximumInterval = maximumInterval
@@ -164,7 +164,7 @@ func TestScheduledDaysPartialSaturation(t *testing.T) {
 			easy := log[Easy].Card.ScheduledDays
 
 			if good != goodBase {
-				t.Errorf("Good should stay below the cap: got=%d want=%d", good, goodBase)
+				t.Errorf("Good should keep its base interval: got=%d want=%d", good, goodBase)
 			}
 			if hard >= good {
 				t.Errorf("expected Hard < Good, got hard=%d good=%d", hard, good)
@@ -197,8 +197,8 @@ func TestSubDayMaximumIntervalKeepsReviewFloor(t *testing.T) {
 				}
 				for _, rating := range []Rating{Again, Hard, Good, Easy} {
 					card := log[rating].Card
-					if card.State == Review && card.ScheduledDays < 1 {
-						t.Errorf("rating %v: Review outcome has ScheduledDays=%d with MaximumInterval=%v, want >= 1", rating, card.ScheduledDays, maximumInterval)
+					if card.State == Review && card.ScheduledDays != 1 {
+						t.Errorf("rating %v: Review outcome has ScheduledDays=%d with MaximumInterval=%v, want 1", rating, card.ScheduledDays, maximumInterval)
 					}
 				}
 			})
