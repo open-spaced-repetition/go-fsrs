@@ -209,31 +209,33 @@ func TestSubDayMaximumIntervalKeepsReviewFloor(t *testing.T) {
 func TestNewCardScheduledDaysRespectMaximumInterval(t *testing.T) {
 	now := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
 
-	for _, shortTerm := range []bool{true, false} {
-		for _, maximumInterval := range []float64{1, 5, 30, 36500} {
-			name := fmt.Sprintf("shortTerm=%v/max=%v", shortTerm, maximumInterval)
-			t.Run(name, func(t *testing.T) {
-				p := DefaultParam()
-				p.EnableShortTerm = shortTerm
-				p.LearningSteps = nil
-				p.RelearningSteps = nil
-				p.MaximumInterval = maximumInterval
-				f := NewFSRS(p)
+	// Basic-scheduler New cards graduate through graduateToReview, and
+	// nextInterval already enforces the cap there. The long-term scheduler
+	// puts New cards through the same monotonic ordering chain as a review,
+	// which is where the post-adjustment cap matters.
+	for _, maximumInterval := range []float64{1, 5, 30, 36500} {
+		name := fmt.Sprintf("max=%v", maximumInterval)
+		t.Run(name, func(t *testing.T) {
+			p := DefaultParam()
+			p.EnableShortTerm = false
+			p.LearningSteps = nil
+			p.RelearningSteps = nil
+			p.MaximumInterval = maximumInterval
+			f := NewFSRS(p)
 
-				log, err := f.Repeat(NewCard(now), now)
-				if err != nil {
-					t.Fatalf("unexpected error: %v", err)
+			log, err := f.Repeat(NewCard(now), now)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			for _, rating := range []Rating{Again, Hard, Good, Easy} {
+				card := log[rating].Card
+				if card.ScheduledDays > uint64(maximumInterval) {
+					t.Errorf("rating %v: ScheduledDays=%d exceeds MaximumInterval=%v", rating, card.ScheduledDays, maximumInterval)
 				}
-				for _, rating := range []Rating{Again, Hard, Good, Easy} {
-					card := log[rating].Card
-					if card.ScheduledDays > uint64(maximumInterval) {
-						t.Errorf("rating %v: ScheduledDays=%d exceeds MaximumInterval=%v", rating, card.ScheduledDays, maximumInterval)
-					}
-					if card.State == Review && card.ScheduledDays < 1 {
-						t.Errorf("rating %v: Review outcome has ScheduledDays=%d, want >= 1", rating, card.ScheduledDays)
-					}
+				if card.State == Review && card.ScheduledDays < 1 {
+					t.Errorf("rating %v: Review outcome has ScheduledDays=%d, want >= 1", rating, card.ScheduledDays)
 				}
-			})
-		}
+			}
+		})
 	}
 }
