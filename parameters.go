@@ -18,15 +18,27 @@ func DefaultRelearningSteps() []float64 {
 // Parameters holds the FSRS scheduler configuration: retention target,
 // interval limits, weights, fuzz and short-term settings, and learning steps.
 type Parameters struct {
-	RequestRetention float64   `json:"RequestRetention"`
-	MaximumInterval  float64   `json:"MaximumInterval"`
-	W                Weights   `json:"Weights"`
-	Decay            float64   `json:"Decay"`
-	Factor           float64   `json:"Factor"`
-	EnableShortTerm  bool      `json:"EnableShortTerm"`
-	EnableFuzz       bool      `json:"EnableFuzz"`
-	LearningSteps    []float64 `json:"LearningSteps"`
-	RelearningSteps  []float64 `json:"RelearningSteps"`
+	RequestRetention float64 `json:"RequestRetention"`
+	// MaximumInterval is the maximum interval in days that the schedulers
+	// assign through Next and Repeat, applied after the ordering adjustments.
+	// Review outcomes keep a one-day minimum even when this value is below
+	// one, and Due is clamped to this value. Explicit LearningSteps and
+	// RelearningSteps are applied as configured and can exceed it. Intervals
+	// returned by NextState and NextStates are raw and are not capped.
+	MaximumInterval float64 `json:"MaximumInterval"`
+	W               Weights `json:"Weights"`
+	Decay           float64 `json:"Decay"`
+	Factor          float64 `json:"Factor"`
+	EnableShortTerm bool    `json:"EnableShortTerm"`
+	EnableFuzz      bool    `json:"EnableFuzz"`
+	// LearningSteps are the learning step delays in minutes, used only when
+	// EnableShortTerm is true. A step of 1440 minutes or more graduates the
+	// card to Review and is not capped by MaximumInterval.
+	LearningSteps []float64 `json:"LearningSteps"`
+	// RelearningSteps are the relearning step delays in minutes, used only
+	// when EnableShortTerm is true. Steps of 1440 minutes or more are not
+	// capped by MaximumInterval.
+	RelearningSteps []float64 `json:"RelearningSteps"`
 	// seed is populated internally by the Scheduler before fuzz is applied.
 	// When calling [Parameters.ApplyFuzz] directly without going through a
 	// Scheduler (e.g. [FSRS.Repeat] or [FSRS.Next]), seed will be empty,
